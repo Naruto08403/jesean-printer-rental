@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CLIENT
+}
+
+enum PrinterStatus {
+  AVAILABLE
+  RENTED
+  IN_REPAIR
+  RETIRED
+}
+
+enum RentalStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentSchedule {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  RENTAL_LINKED
+  REPAIR_LINKED
+  NOTE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         UserRole @default(CLIENT)
+  client       Client?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Client {
+  id        String             @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  company   String?
+  notes     String?
+  userId    String?            @unique
+  user      User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rentals   Rental[]
+  repairs   Repair[]
+  sales     Sale[]
+  cctvJobs  CctvInstallation[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model Printer {
+  id           String            @id @default(cuid())
+  serialNumber String?           @unique
+  brand        String?
+  model        String?
+  status       PrinterStatus     @default(AVAILABLE)
+  notes        String?
+  rentals      Rental[]
+  repairs      Repair[]
+  auditLogs    PrinterAuditLog[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model PrinterAuditLog {
+  id        String      @id @default(cuid())
+  printerId String
+  printer   Printer     @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  action    AuditAction
+  message   String
+  metadata  String?
+  userEmail String?
+  createdAt DateTime    @default(now())
+}
+
+model Rental {
+  id              String          @id @default(cuid())
+  clientId        String
+  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  printerId       String?
+  printer         Printer?        @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  status          RentalStatus    @default(ACTIVE)
+  startDate       DateTime
+  endDate         DateTime?
+  ratePerPeriod   Float
+  paymentSchedule PaymentSchedule @default(QUARTERLY)
+  totalContract   Float?
+  description     String?
+  payments        Payment[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Repair {
+  id          String        @id @default(cuid())
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  printerId   String?
+  printer     Printer?      @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  status      ServiceStatus @default(PENDING)
+  title       String
+  description String?
+  totalAmount Float
+  completedAt DateTime?
+  payments    Payment[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Sale {
+  id          String        @id @default(cuid())
+  clientId    String?
+  client      Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  status      ServiceStatus @default(COMPLETED)
+  items       String
+  totalAmount Float
+  notes       String?
+  payments    Payment[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model CctvInstallation {
+  id          String        @id @default(cuid())
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status      ServiceStatus @default(PENDING)
+  siteAddress String?
+  description String?
+  totalAmount Float
+  completedAt DateTime?
+  payments    Payment[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Payment {
+  id                 String            @id @default(cuid())
+  amount             Float
+  paidAt             DateTime          @default(now())
+  method             String?
+  reference          String?
+  notes              String?
+  rentalId           String?
+  rental             Rental?           @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  repairId           String?
+  repair             Repair?           @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  saleId             String?
+  sale               Sale?             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  cctvInstallationId String?
+  cctvInstallation   CctvInstallation? @relation(fields: [cctvInstallationId], references: [id], onDelete: Cascade)
+  createdAt          DateTime          @default(now())
+}
