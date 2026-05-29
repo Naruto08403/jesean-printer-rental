@@ -33,7 +33,13 @@ export default async function PortalRentalsPage() {
                     ? `${r.printer.brand ?? ""} ${r.printer.model ?? ""}`.trim() || "Printer"
                     : "Rental"}
                 </CardTitle>
-                <Badge color={r.status === "ACTIVE" ? "green" : "slate"}>{r.status}</Badge>
+                <Badge
+                  color={
+                    r.status === "ACTIVE" ? "green" : r.status === "PAUSED" ? "amber" : "slate"
+                  }
+                >
+                  {r.status.replace("_", " ")}
+                </Badge>
               </div>
               <p className="mt-1 text-sm text-slate-500">
                 {formatDate(r.startDate)}

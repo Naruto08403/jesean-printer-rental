@@ -21,8 +21,18 @@ enum PrinterStatus {
 
 enum RentalStatus {
   ACTIVE
+  PAUSED
   COMPLETED
   CANCELLED
+}
+
+enum RentalAuditAction {
+  CREATED
+  STATUS_CHANGED
+  PAUSED
+  RESUMED
+  RETURNED
+  NOTE
 }
 
 enum ServiceStatus {
@@ -116,8 +126,20 @@ model Rental {
   totalContract   Float?
   description     String?
   payments        Payment[]
+  auditLogs       RentalAuditLog[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+}
+
+model RentalAuditLog {
+  id        String            @id @default(cuid())
+  rentalId  String
+  rental    Rental            @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  action    RentalAuditAction
+  message   String
+  metadata  String?
+  userEmail String?
+  createdAt DateTime          @default(now())
 }
 
 model Repair {

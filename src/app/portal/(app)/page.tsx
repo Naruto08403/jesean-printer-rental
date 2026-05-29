@@ -16,7 +16,7 @@ export default async function PortalPage() {
     where: { id: clientId },
     include: {
       rentals: {
-        where: { status: "ACTIVE" },
+        where: { status: { in: ["ACTIVE", "PAUSED"] } },
         include: { payments: true, printer: true },
       },
       repairs: {
@@ -42,7 +42,7 @@ export default async function PortalPage() {
       </div>
 
       <Card>
-        <CardTitle>Active rentals</CardTitle>
+        <CardTitle>Active & paused rentals</CardTitle>
         {client.rentals.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">No active rentals</p>
         ) : (
@@ -58,7 +58,10 @@ export default async function PortalPage() {
                         ? `${r.printer.brand ?? ""} ${r.printer.model ?? ""}`.trim()
                         : "Printer rental"}
                     </p>
-                    <Badge color="blue">{r.paymentSchedule.toLowerCase()}</Badge>
+                    <div className="flex gap-2">
+                      {r.status === "PAUSED" && <Badge color="amber">Paused</Badge>}
+                      <Badge color="blue">{r.paymentSchedule.toLowerCase()}</Badge>
+                    </div>
                   </div>
                   <div className="mt-2">
                     <PaymentStatus summary={summary} />
