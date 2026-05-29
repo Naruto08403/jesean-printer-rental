@@ -1,13 +1,17 @@
 import { prisma } from "@/lib/prisma";
-import { createRepair } from "@/actions/repairs";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
+import { DataTableElement } from "@/components/data-table";
+import {
+  SearchableDataTable,
+  SearchNoMatchRow,
+} from "@/components/searchable-data-table";
+import { toSearchText } from "@/lib/search";
+import { AddRepairModal } from "@/components/forms/add-repair-modal";
 import { PaymentStatus } from "@/components/payment-status";
 import { summarizePayments } from "@/lib/payments";
+import { formatCurrency } from "@/lib/utils";
 
 export default async function RepairsPage() {
   const [repairs, clients, printers] = await Promise.all([
@@ -19,70 +23,97 @@ export default async function RepairsPage() {
     prisma.printer.findMany({ orderBy: { brand: "asc" } }),
   ]);
 
+  const clientOptions = clients.map((c) => ({ id: c.id, label: c.name }));
+  const printerOptions = printers.map((p) => ({
+    id: p.id,
+    label: [p.brand, p.model].filter(Boolean).join(" ") || p.serialNumber || "Printer",
+  }));
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Repairs</h1>
+      <PageHeader title="Repairs" subtitle={`${repairs.length} total`}>
+        <AddRepairModal clients={clientOptions} printers={printerOptions} />
+      </PageHeader>
 
-      <Card>
-        <CardTitle>New repair job</CardTitle>
-        <form action={createRepair} className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label>Client *</Label>
-            <Select name="clientId" required>
-              <option value="">Select</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Printer (optional)</Label>
-            <Select name="printerId">
-              <option value="">None</option>
-              {printers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {[p.brand, p.model].filter(Boolean).join(" ")}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Title *</Label>
-            <Input name="title" required />
-          </div>
-          <div>
-            <Label>Total amount (PHP) *</Label>
-            <Input name="totalAmount" type="number" step="0.01" required />
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit">Create repair</Button>
-          </div>
-        </form>
-      </Card>
+      <SearchableDataTable placeholder="Search repairs by title, client, printer, status...">
+        <DataTableElement>
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
+              <th className="px-4 py-3 font-medium">Title</th>
+              <th className="px-4 py-3 font-medium">Client</th>
+              <th className="px-4 py-3 font-medium">Printer</th>
+              <th className="px-4 py-3 font-medium">Amount</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Payment</th>
+              <th className="px-4 py-3 font-medium" />
+            </tr>
+          </thead>
+          <tbody>
+            {repairs.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  No repairs yet.
+                </td>
+              </tr>
+            )}
+            {repairs.map((r) => {
+              const summary = summarizePayments(r.totalAmount, r.payments);
+              const printerLabel = r.printer
+                ? [r.printer.brand, r.printer.model, r.printer.serialNumber]
+                    .filter(Boolean)
+                    .join(" ")
+                : "";
 
-      <Card>
-        <CardTitle>All repairs</CardTitle>
-        <div className="mt-4 space-y-3">
-          {repairs.map((r) => {
-            const summary = summarizePayments(r.totalAmount, r.payments);
-            return (
-              <Link
-                key={r.id}
-                href={`/dashboard/repairs/${r.id}`}
-                className="block rounded-lg border p-4 hover:bg-slate-50"
-              >
-                <p className="font-semibold">{r.title}</p>
-                <p className="text-sm text-slate-500">{r.client.name} · {r.status}</p>
-                <div className="mt-2">
-                  <PaymentStatus summary={summary} />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </Card>
+              return (
+                <tr
+                  key={r.id}
+                  data-search-row
+                  data-search={toSearchText(
+                    r.title,
+                    r.client.name,
+                    printerLabel,
+                    formatCurrency(r.totalAmount),
+                    r.status,
+                    formatCurrency(summary.paid),
+                    summary.isFullyPaid ? "paid" : summary.paid > 0 ? "partial" : "unpaid"
+                  )}
+                  className="border-b border-slate-50 hover:bg-slate-50/50"
+                >
+                  <td className="px-4 py-3 font-medium">{r.title}</td>
+                  <td className="px-4 py-3 text-slate-600">{r.client.name}</td>
+                  <td className="px-4 py-3 text-slate-600">{printerLabel || "—"}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatCurrency(r.totalAmount)}</td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      color={
+                        r.status === "COMPLETED"
+                          ? "green"
+                          : r.status === "IN_PROGRESS"
+                            ? "amber"
+                            : "slate"
+                      }
+                    >
+                      {r.status.replace("_", " ")}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <PaymentStatus summary={summary} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/dashboard/repairs/${r.id}`}
+                      className="text-brand-600 hover:underline"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+            <SearchNoMatchRow colSpan={7} />
+          </tbody>
+        </DataTableElement>
+      </SearchableDataTable>
     </div>
   );
 }

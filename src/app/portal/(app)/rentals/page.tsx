@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 export default async function PortalRentalsPage() {
   const session = await auth();
   const clientId = session?.user?.clientId;
-  if (!clientId) redirect("/login");
+  if (!clientId) redirect("/portal/login");
 
   const rentals = await prisma.rental.findMany({
     where: { clientId },

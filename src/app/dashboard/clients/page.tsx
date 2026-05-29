@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CsvImportClients } from "@/components/csv-import";
-import { createClient } from "@/actions/clients";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
+import { DataTableElement } from "@/components/data-table";
+import {
+  SearchableDataTable,
+  SearchNoMatchRow,
+} from "@/components/searchable-data-table";
+import { toSearchText } from "@/lib/search";
+import { AddClientModal } from "@/components/forms/add-client-modal";
+import { ImportClientsModal } from "@/components/forms/import-clients-modal";
 
 export default async function ClientsPage() {
   const clients = await prisma.client.findMany({
@@ -16,76 +19,69 @@ export default async function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Clients</h1>
-          <p className="text-slate-500">{clients.length} total</p>
-        </div>
-      </div>
+      <PageHeader title="Clients" subtitle={`${clients.length} total`}>
+        <ImportClientsModal />
+        <AddClientModal />
+      </PageHeader>
 
-      <CsvImportClients />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardTitle>Add client</CardTitle>
-          <form action={createClient} className="mt-4 space-y-3">
-            <div>
-              <Label htmlFor="name">Name *</Label>
-              <Input id="name" name="name" required />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" />
-            </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" name="phone" />
-            </div>
-            <div>
-              <Label htmlFor="company">Company</Label>
-              <Input id="company" name="company" />
-            </div>
-            <Button type="submit">Save client</Button>
-          </form>
-        </Card>
-
-        <Card className="lg:col-span-1">
-          <CardTitle>All clients</CardTitle>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b text-slate-500">
-                  <th className="pb-2 pr-4">Name</th>
-                  <th className="pb-2 pr-4">Portal</th>
-                  <th className="pb-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-50">
-                    <td className="py-3 pr-4 font-medium">{c.name}</td>
-                    <td className="py-3 pr-4">
-                      {c.user ? (
-                        <Badge color="green">Active</Badge>
-                      ) : (
-                        <Badge color="slate">None</Badge>
-                      )}
-                    </td>
-                    <td className="py-3 text-right">
-                      <Link
-                        href={`/dashboard/clients/${c.id}`}
-                        className="text-brand-600 hover:underline"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+      <SearchableDataTable placeholder="Search clients by name, email, phone, company...">
+        <DataTableElement>
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
+              <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Email</th>
+              <th className="px-4 py-3 font-medium">Phone</th>
+              <th className="px-4 py-3 font-medium">Company</th>
+              <th className="px-4 py-3 font-medium">Portal</th>
+              <th className="px-4 py-3 font-medium" />
+            </tr>
+          </thead>
+          <tbody>
+            {clients.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  No clients yet. Add one or import CSV.
+                </td>
+              </tr>
+            )}
+            {clients.map((c) => (
+              <tr
+                key={c.id}
+                data-search-row
+                data-search={toSearchText(
+                  c.name,
+                  c.email,
+                  c.phone,
+                  c.company,
+                  c.user ? "portal active" : "portal none"
+                )}
+                className="border-b border-slate-50 hover:bg-slate-50/50"
+              >
+                <td className="px-4 py-3 font-medium">{c.name}</td>
+                <td className="px-4 py-3 text-slate-600">{c.email ?? "—"}</td>
+                <td className="px-4 py-3 text-slate-600">{c.phone ?? "—"}</td>
+                <td className="px-4 py-3 text-slate-600">{c.company ?? "—"}</td>
+                <td className="px-4 py-3">
+                  {c.user ? (
+                    <Badge color="green">Active</Badge>
+                  ) : (
+                    <Badge color="slate">None</Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Link
+                    href={`/dashboard/clients/${c.id}`}
+                    className="text-brand-600 hover:underline"
+                  >
+                    View
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            <SearchNoMatchRow colSpan={6} />
+          </tbody>
+        </DataTableElement>
+      </SearchableDataTable>
     </div>
   );
 }

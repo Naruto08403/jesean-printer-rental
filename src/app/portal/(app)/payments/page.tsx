@@ -7,7 +7,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 export default async function PortalPaymentsPage() {
   const session = await auth();
   const clientId = session?.user?.clientId;
-  if (!clientId) redirect("/login");
+  if (!clientId) redirect("/portal/login");
 
   const [rentals, repairs, sales, cctv] = await Promise.all([
     prisma.rental.findMany({

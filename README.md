@@ -5,7 +5,7 @@ Business management app for **printer rentals**, **repairs**, **sales** (inks & 
 ## Stack
 
 - Next.js 15 (App Router)
-- Prisma + SQLite (local)
+- Prisma + PostgreSQL (Prisma Postgres / `PRISMA_DATABASE_URL`)
 - NextAuth (credentials) — admin + client roles
 - Tailwind CSS 4
 
@@ -51,32 +51,17 @@ Upload a CSV on **Dashboard → Clients**. Supported headers (flexible):
 
 1. Open a client in the dashboard
 2. Use **Create portal access** with email + password
-3. Share credentials; client signs in at `/login` and lands on `/portal`
+3. Set a **username** and password; client signs in at `/portal/login`
 
 ## Deploy to Vercel
 
-SQLite file storage does **not** persist on serverless. For production:
+Set these environment variables in the Vercel project:
 
-1. Create a [Turso](https://turso.tech) database (LibSQL)
-2. In `prisma/schema.prisma`, switch provider when ready:
+- `PRISMA_DATABASE_URL` (or `POSTGRES_URL` — keep both in sync)
+- `AUTH_SECRET`
+- `NEXTAUTH_URL` (your production URL)
 
-   ```prisma
-   datasource db {
-     provider = "sqlite"
-     url      = env("DATABASE_URL")
-   }
-   ```
-
-   Turso uses the same SQLite dialect; set:
-
-   ```env
-   DATABASE_URL="libsql://your-db.turso.io?authToken=..."
-   ```
-
-3. Set Vercel env vars: `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`
-4. Run migrations on deploy: add build script `prisma db push` or use Turso CLI
-
-Alternatively use **Prisma Postgres** or **Neon** and change `provider` to `postgresql`.
+The build runs `prisma db push` to sync the schema to Postgres.
 
 ## Scripts
 
@@ -84,7 +69,7 @@ Alternatively use **Prisma Postgres** or **Neon** and change `provider` to `post
 |---------|-------------|
 | `npm run dev` | Development server |
 | `npm run build` | Production build |
-| `npm run db:push` | Sync schema to SQLite |
+| `npm run db:push` | Sync schema to Postgres |
 | `npm run db:seed` | Create admin user |
 | `npm run db:studio` | Prisma Studio |
 

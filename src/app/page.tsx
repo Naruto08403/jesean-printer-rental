@@ -13,9 +13,14 @@ export default async function HomePage() {
     <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6">
         <span className="text-xl font-bold text-brand-800">Jesean Rentals</span>
-        <Link href="/login">
-          <Button>Staff / Client login</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/portal/login">
+            <Button variant="secondary">Client portal</Button>
+          </Link>
+          <Link href="/login">
+            <Button>Staff login</Button>
+          </Link>
+        </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 text-center sm:pt-16">
         <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">

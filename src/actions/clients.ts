@@ -103,28 +103,36 @@ export async function importClientsFromCsv(csvText: string) {
   return { created };
 }
 
+const usernameSchema = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(32)
+  .regex(/^[a-zA-Z0-9._-]+$/, "Letters, numbers, dots, dashes, underscores only");
+
 export async function createClientPortalLogin(
   clientId: string,
   formData: FormData
 ) {
   await requireAdmin();
-  const email = String(formData.get("email") ?? "").toLowerCase().trim();
+  const username = usernameSchema.parse(
+    String(formData.get("username") ?? "").toLowerCase().trim()
+  );
   const password = String(formData.get("password") ?? "");
-  if (!email || password.length < 6) {
-    throw new Error("Email and password (min 6 chars) required");
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters");
   }
 
   const client = await prisma.client.findUnique({ where: { id: clientId } });
   if (!client) throw new Error("Client not found");
   if (client.userId) throw new Error("Client already has portal access");
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw new Error("Email already in use");
+  const existing = await prisma.user.findFirst({ where: { username } });
+  if (existing) throw new Error("Username already in use");
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
     data: {
-      email,
+      username,
       passwordHash,
       name: client.name,
       role: "CLIENT",
@@ -133,7 +141,7 @@ export async function createClientPortalLogin(
 
   await prisma.client.update({
     where: { id: clientId },
-    data: { userId: user.id, email: client.email ?? email },
+    data: { userId: user.id },
   });
 
   revalidatePath(`/dashboard/clients/${clientId}`);

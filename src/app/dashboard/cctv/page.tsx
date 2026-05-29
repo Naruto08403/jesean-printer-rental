@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { createCctv } from "@/actions/cctv";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
+import { DataTableElement } from "@/components/data-table";
+import {
+  SearchableDataTable,
+  SearchNoMatchRow,
+} from "@/components/searchable-data-table";
+import { toSearchText } from "@/lib/search";
+import { AddCctvModal } from "@/components/forms/add-cctv-modal";
 import { PaymentStatus } from "@/components/payment-status";
 import { summarizePayments } from "@/lib/payments";
 import { formatCurrency } from "@/lib/utils";
@@ -19,61 +22,89 @@ export default async function CctvPage() {
     prisma.client.findMany({ orderBy: { name: "asc" } }),
   ]);
 
+  const clientOptions = clients.map((c) => ({ id: c.id, label: c.name }));
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">CCTV installations</h1>
+      <PageHeader title="CCTV installations" subtitle={`${jobs.length} total`}>
+        <AddCctvModal clients={clientOptions} />
+      </PageHeader>
 
-      <Card>
-        <CardTitle>New installation</CardTitle>
-        <form action={createCctv} className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label>Client *</Label>
-            <Select name="clientId" required>
-              <option value="">Select</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Total (PHP) *</Label>
-            <Input name="totalAmount" type="number" step="0.01" required />
-          </div>
-          <div>
-            <Label>Site address</Label>
-            <Input name="siteAddress" />
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Description</Label>
-            <Input name="description" />
-          </div>
-          <Button type="submit">Create job</Button>
-        </form>
-      </Card>
+      <SearchableDataTable placeholder="Search CCTV by client, site, description, status...">
+        <DataTableElement>
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
+              <th className="px-4 py-3 font-medium">Client</th>
+              <th className="px-4 py-3 font-medium">Site</th>
+              <th className="px-4 py-3 font-medium">Description</th>
+              <th className="px-4 py-3 font-medium">Total</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Payment</th>
+              <th className="px-4 py-3 font-medium" />
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  No installations yet.
+                </td>
+              </tr>
+            )}
+            {jobs.map((j) => {
+              const summary = summarizePayments(j.totalAmount, j.payments);
 
-      <Card>
-        <CardTitle>Installations</CardTitle>
-        <div className="mt-4 space-y-3">
-          {jobs.map((j) => {
-            const summary = summarizePayments(j.totalAmount, j.payments);
-            return (
-              <Link
-                key={j.id}
-                href={`/dashboard/cctv/${j.id}`}
-                className="block rounded-lg border p-4 hover:bg-slate-50"
-              >
-                <p className="font-semibold">{j.client.name}</p>
-                <p className="text-sm text-slate-500">
-                  {j.status} · {formatCurrency(j.totalAmount)}
-                </p>
-                <PaymentStatus summary={summary} />
-              </Link>
-            );
-          })}
-        </div>
-      </Card>
+              return (
+                <tr
+                  key={j.id}
+                  data-search-row
+                  data-search={toSearchText(
+                    j.client.name,
+                    j.siteAddress,
+                    j.description,
+                    formatCurrency(j.totalAmount),
+                    j.status,
+                    summary.isFullyPaid ? "paid" : summary.paid > 0 ? "partial" : "unpaid"
+                  )}
+                  className="border-b border-slate-50 hover:bg-slate-50/50"
+                >
+                  <td className="px-4 py-3 font-medium">{j.client.name}</td>
+                  <td className="px-4 py-3 text-slate-600">{j.siteAddress ?? "—"}</td>
+                  <td className="max-w-[180px] truncate px-4 py-3 text-slate-600">
+                    {j.description ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{formatCurrency(j.totalAmount)}</td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      color={
+                        j.status === "COMPLETED"
+                          ? "green"
+                          : j.status === "IN_PROGRESS"
+                            ? "amber"
+                            : "slate"
+                      }
+                    >
+                      {j.status.replace("_", " ")}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <PaymentStatus summary={summary} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/dashboard/cctv/${j.id}`}
+                      className="text-brand-600 hover:underline"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+            <SearchNoMatchRow colSpan={7} />
+          </tbody>
+        </DataTableElement>
+      </SearchableDataTable>
     </div>
   );
 }

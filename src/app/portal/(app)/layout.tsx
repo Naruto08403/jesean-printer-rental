@@ -2,7 +2,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
 
-export default async function PortalLayout({
+export default async function PortalAppLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -15,7 +15,9 @@ export default async function PortalLayout({
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <div>
             <p className="text-lg font-bold text-brand-800">Jesean Rentals</p>
-            <p className="text-xs text-slate-500">Client portal · {session?.user?.name}</p>
+            <p className="text-xs text-slate-500">
+              Client portal · {session?.user?.name ?? session?.user?.username}
+            </p>
           </div>
           <SignOutButton />
         </div>

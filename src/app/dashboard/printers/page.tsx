@@ -1,11 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { createPrinter } from "@/actions/printers";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
+import { DataTableElement } from "@/components/data-table";
+import {
+  SearchableDataTable,
+  SearchNoMatchRow,
+} from "@/components/searchable-data-table";
+import { toSearchText } from "@/lib/search";
+import { AddPrinterModal } from "@/components/forms/add-printer-modal";
+import { ImportPrintersModal } from "@/components/forms/import-printers-modal";
 
 const statusColor: Record<string, "green" | "amber" | "blue" | "slate"> = {
   AVAILABLE: "green",
@@ -24,67 +28,68 @@ export default async function PrintersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Printers</h1>
+      <PageHeader title="Printers" subtitle={`${printers.length} in inventory`}>
+        <ImportPrintersModal />
+        <AddPrinterModal />
+      </PageHeader>
 
-      <Card>
-        <CardTitle>Add printer</CardTitle>
-        <form action={createPrinter} className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="serialNumber">Serial number</Label>
-            <Input id="serialNumber" name="serialNumber" />
-          </div>
-          <div>
-            <Label htmlFor="brand">Brand</Label>
-            <Input id="brand" name="brand" />
-          </div>
-          <div>
-            <Label htmlFor="model">Model</Label>
-            <Input id="model" name="model" />
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit">Add printer</Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card>
-        <CardTitle>Inventory</CardTitle>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-slate-500">
-                <th className="pb-2">Unit</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">History</th>
-                <th />
+      <SearchableDataTable placeholder="Search printers by brand, model, serial, status...">
+        <DataTableElement>
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
+              <th className="px-4 py-3 font-medium">Unit</th>
+              <th className="px-4 py-3 font-medium">Serial</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Rentals</th>
+              <th className="px-4 py-3 font-medium">Repairs</th>
+              <th className="px-4 py-3 font-medium" />
+            </tr>
+          </thead>
+          <tbody>
+            {printers.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  No printers yet.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {printers.map((p) => (
-                <tr key={p.id} className="border-b border-slate-50">
-                  <td className="py-3">
-                    <p className="font-medium">
-                      {[p.brand, p.model].filter(Boolean).join(" ") || "Printer"}
-                    </p>
-                    <p className="text-slate-500">{p.serialNumber ?? "No serial"}</p>
-                  </td>
-                  <td className="py-3">
+            )}
+            {printers.map((p) => {
+              const unit = [p.brand, p.model].filter(Boolean).join(" ") || "Printer";
+              return (
+                <tr
+                  key={p.id}
+                  data-search-row
+                  data-search={toSearchText(
+                    unit,
+                    p.serialNumber,
+                    p.status,
+                    p._count.rentals,
+                    p._count.repairs
+                  )}
+                  className="border-b border-slate-50 hover:bg-slate-50/50"
+                >
+                  <td className="px-4 py-3 font-medium">{unit}</td>
+                  <td className="px-4 py-3 text-slate-600">{p.serialNumber ?? "—"}</td>
+                  <td className="px-4 py-3">
                     <Badge color={statusColor[p.status]}>{p.status.replace("_", " ")}</Badge>
                   </td>
-                  <td className="py-3 text-slate-600">
-                    {p._count.rentals} rentals · {p._count.repairs} repairs
-                  </td>
-                  <td className="py-3 text-right">
-                    <Link href={`/dashboard/printers/${p.id}`} className="text-brand-600">
+                  <td className="px-4 py-3 text-slate-600">{p._count.rentals}</td>
+                  <td className="px-4 py-3 text-slate-600">{p._count.repairs}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/dashboard/printers/${p.id}`}
+                      className="text-brand-600 hover:underline"
+                    >
                       Details
                     </Link>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              );
+            })}
+            <SearchNoMatchRow colSpan={6} />
+          </tbody>
+        </DataTableElement>
+      </SearchableDataTable>
     </div>
   );
 }

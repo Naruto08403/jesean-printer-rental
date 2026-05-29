@@ -7,7 +7,10 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
+/Data
+/Data/rentals.csv
+/Data/printers-import.csv
+/Data/rentals-import.csv
 # testing
 /coverage
 

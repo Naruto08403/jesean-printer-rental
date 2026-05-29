@@ -61,22 +61,25 @@ export default async function ClientDetailPage({
           <CardTitle>Client portal login</CardTitle>
           {client.user ? (
             <p className="mt-2 text-sm text-slate-600">
-              Portal active: <strong>{client.user.email}</strong>
+              Portal active · username: <strong>{client.user.username}</strong>
             </p>
           ) : (
             <form action={createLogin} className="mt-4 space-y-3">
               <div>
-                <Label htmlFor="loginEmail">Login email</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input
-                  id="loginEmail"
-                  name="email"
-                  type="email"
-                  defaultValue={client.email ?? ""}
+                  id="username"
+                  name="username"
+                  type="text"
                   required
+                  minLength={3}
+                  maxLength={32}
+                  autoCapitalize="none"
+                  placeholder="e.g. acme_corp"
                 />
               </div>
               <div>
-                <Label htmlFor="password">Temporary password</Label>
+                <Label htmlFor="password">Password</Label>
                 <Input id="password" name="password" type="password" minLength={6} required />
               </div>
               <Button type="submit">Create portal access</Button>

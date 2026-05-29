@@ -1,13 +1,18 @@
 import { prisma } from "@/lib/prisma";
-import { createRental } from "@/actions/rentals";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
+import { DataTableElement } from "@/components/data-table";
+import {
+  SearchableDataTable,
+  SearchNoMatchRow,
+} from "@/components/searchable-data-table";
+import { toSearchText } from "@/lib/search";
+import { AddRentalModal } from "@/components/forms/add-rental-modal";
+import { ImportRentalsModal } from "@/components/forms/import-rentals-modal";
 import { PaymentStatus } from "@/components/payment-status";
 import { rentalExpectedTotal, summarizePayments } from "@/lib/payments";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default async function RentalsPage() {
   const [rentals, clients, printers] = await Promise.all([
@@ -22,92 +27,96 @@ export default async function RentalsPage() {
     }),
   ]);
 
+  const clientOptions = clients.map((c) => ({ id: c.id, label: c.name }));
+  const printerOptions = printers.map((p) => ({
+    id: p.id,
+    label: [p.brand, p.model, p.serialNumber].filter(Boolean).join(" "),
+  }));
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Printer rentals</h1>
+      <PageHeader title="Printer rentals" subtitle={`${rentals.length} total`}>
+        <ImportRentalsModal />
+        <AddRentalModal clients={clientOptions} printers={printerOptions} />
+      </PageHeader>
 
-      <Card>
-        <CardTitle>New rental</CardTitle>
-        <form action={createRental} className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label>Client *</Label>
-            <Select name="clientId" required>
-              <option value="">Select client</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Printer</Label>
-            <Select name="printerId">
-              <option value="">None</option>
-              {printers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {[p.brand, p.model, p.serialNumber].filter(Boolean).join(" ")}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Start date *</Label>
-            <Input name="startDate" type="date" required />
-          </div>
-          <div>
-            <Label>End date</Label>
-            <Input name="endDate" type="date" />
-          </div>
-          <div>
-            <Label>Rate per period (PHP) *</Label>
-            <Input name="ratePerPeriod" type="number" step="0.01" required />
-          </div>
-          <div>
-            <Label>Payment schedule *</Label>
-            <Select name="paymentSchedule" defaultValue="QUARTERLY">
-              <option value="MONTHLY">Monthly</option>
-              <option value="QUARTERLY">Quarterly</option>
-              <option value="ANNUAL">Annual</option>
-            </Select>
-          </div>
-          <div>
-            <Label>Total contract (optional)</Label>
-            <Input name="totalContract" type="number" step="0.01" />
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit">Create rental</Button>
-          </div>
-        </form>
-      </Card>
+      <SearchableDataTable placeholder="Search rentals by client, printer, status, schedule...">
+        <DataTableElement>
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
+              <th className="px-4 py-3 font-medium">Client</th>
+              <th className="px-4 py-3 font-medium">Printer</th>
+              <th className="px-4 py-3 font-medium">Period</th>
+              <th className="px-4 py-3 font-medium">Schedule</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Payment</th>
+              <th className="px-4 py-3 font-medium" />
+            </tr>
+          </thead>
+          <tbody>
+            {rentals.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  No rentals yet.
+                </td>
+              </tr>
+            )}
+            {rentals.map((r) => {
+              const total = rentalExpectedTotal(r);
+              const summary = summarizePayments(total, r.payments);
+              const printerLabel = r.printer
+                ? [r.printer.brand, r.printer.model, r.printer.serialNumber]
+                    .filter(Boolean)
+                    .join(" ")
+                : "";
+              const period = `${formatDate(r.startDate)}${r.endDate ? ` ${formatDate(r.endDate)}` : ""}`;
 
-      <Card>
-        <CardTitle>All rentals</CardTitle>
-        <div className="mt-4 space-y-3">
-          {rentals.map((r) => {
-            const total = rentalExpectedTotal(r);
-            const summary = summarizePayments(total, r.payments);
-            return (
-              <Link
-                key={r.id}
-                href={`/dashboard/rentals/${r.id}`}
-                className="block rounded-lg border border-slate-100 p-4 hover:bg-slate-50"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{r.client.name}</p>
-                    <p className="text-sm text-slate-500">
-                      {r.status} · {r.paymentSchedule.toLowerCase()} billing
-                      {r.printer && ` · ${r.printer.brand} ${r.printer.model ?? ""}`}
-                    </p>
-                  </div>
-                  <PaymentStatus summary={summary} />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </Card>
+              return (
+                <tr
+                  key={r.id}
+                  data-search-row
+                  data-search={toSearchText(
+                    r.client.name,
+                    printerLabel,
+                    period,
+                    r.paymentSchedule,
+                    r.status,
+                    formatCurrency(summary.paid),
+                    formatCurrency(summary.total),
+                    summary.isFullyPaid ? "paid" : summary.paid > 0 ? "partial" : "unpaid"
+                  )}
+                  className="border-b border-slate-50 hover:bg-slate-50/50"
+                >
+                  <td className="px-4 py-3 font-medium">{r.client.name}</td>
+                  <td className="px-4 py-3 text-slate-600">{printerLabel || "—"}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {formatDate(r.startDate)}
+                    {r.endDate ? ` – ${formatDate(r.endDate)}` : ""}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-slate-600">
+                    {r.paymentSchedule.toLowerCase()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge color={r.status === "ACTIVE" ? "green" : "slate"}>{r.status}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <PaymentStatus summary={summary} />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/dashboard/rentals/${r.id}`}
+                      className="text-brand-600 hover:underline"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+            <SearchNoMatchRow colSpan={7} />
+          </tbody>
+        </DataTableElement>
+      </SearchableDataTable>
     </div>
   );
 }

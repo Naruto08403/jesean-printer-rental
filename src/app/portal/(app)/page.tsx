@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 export default async function PortalPage() {
   const session = await auth();
   const clientId = session?.user?.clientId;
-  if (!clientId) redirect("/login");
+  if (!clientId) redirect("/portal/login");
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -32,7 +32,7 @@ export default async function PortalPage() {
     },
   });
 
-  if (!client) redirect("/login");
+  if (!client) redirect("/portal/login");
 
   return (
     <div className="space-y-6">
