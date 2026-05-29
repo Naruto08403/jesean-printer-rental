@@ -5,7 +5,7 @@ export async function logPrinterAudit(
   printerId: string,
   action: AuditAction,
   message: string,
-  options?: { metadata?: Record<string, unknown>; userEmail?: string }
+  options?: { metadata?: Record<string, unknown>; userEmail?: string | null }
 ) {
   await prisma.printerAuditLog.create({
     data: {
