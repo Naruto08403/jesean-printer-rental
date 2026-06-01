@@ -5,6 +5,7 @@ import { AddRentalPaymentModal } from "@/components/forms/add-rental-payment-mod
 import { ImportRentalsModal } from "@/components/forms/import-rentals-modal";
 import { RentalPaymentRecordsModal } from "@/components/rental-payment-records-modal";
 import { RentalsAnnualView } from "@/components/rentals-annual-view";
+import { GenerateBillingModal } from "@/components/forms/generate-billing-modal";
 import { ManageClientPauseModal } from "@/components/forms/manage-client-pause-modal";
 import { getClientPaymentSuggestion } from "@/lib/rental-annual";
 import { formatPausePeriodRange, pausePeriodKey } from "@/lib/rental-pause";
@@ -110,11 +111,27 @@ export default async function RentalsPage() {
           clients={clientOptions.map(({ id, label }) => ({ id, label }))}
           pauseGroupsByClient={pauseGroupsByClient}
         />
+        <GenerateBillingModal
+          clients={clientOptions.map(({ id, label, monthlyPayable, unitCount }) => ({
+            id,
+            label,
+            monthlyPayable,
+            unitCount,
+          }))}
+        />
         <AddRentalPaymentModal clients={clientOptions} />
         <AddRentalModal clients={clientOptions} printers={printerOptions} />
       </PageHeader>
 
-      <RentalsAnnualView rentals={rentalData} />
+      <RentalsAnnualView
+        rentals={rentalData}
+        billingClients={clientOptions.map(({ id, label, monthlyPayable, unitCount }) => ({
+          id,
+          label,
+          monthlyPayable,
+          unitCount,
+        }))}
+      />
     </div>
   );
 }

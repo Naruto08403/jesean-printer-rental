@@ -13,6 +13,8 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { RentalPausePeriodsCard } from "@/components/rental-pause-periods-card";
+import { GenerateBillingModal } from "@/components/forms/generate-billing-modal";
+import { getClientPaymentSuggestion } from "@/lib/rental-annual";
 
 const statusBadge: Record<string, "green" | "amber" | "slate" | "red"> = {
   ACTIVE: "green",
@@ -45,6 +47,18 @@ export default async function RentalDetailPage({
     },
   });
   if (!rental) notFound();
+
+  const clientRentals = await prisma.rental.findMany({
+    where: { clientId: rental.clientId, status: { in: ["ACTIVE", "PAUSED"] } },
+    include: { printer: true },
+  });
+  const billingSuggestion = getClientPaymentSuggestion(clientRentals);
+  const billingClient = {
+    id: rental.client.id,
+    label: rental.client.name,
+    monthlyPayable: billingSuggestion?.monthlyPayable ?? 0,
+    unitCount: billingSuggestion?.unitCount ?? 0,
+  };
 
   const rentalData = {
     id: rental.id,
@@ -109,6 +123,12 @@ export default async function RentalDetailPage({
             {rental.paymentSchedule.toLowerCase().replace("ly", "")}
           </p>
         </div>
+        {billingClient.unitCount > 0 && (
+          <GenerateBillingModal
+            clients={[billingClient]}
+            defaultClientId={billingClient.id}
+          />
+        )}
       </div>
 
       <Card>

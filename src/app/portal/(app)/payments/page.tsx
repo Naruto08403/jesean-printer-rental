@@ -1,82 +1,94 @@
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getPortalClientData, printerLabel } from "@/lib/portal-data";
 import { redirect } from "next/navigation";
-import { Card, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  PortalPaymentTimeline,
+  type PortalPaymentItem,
+} from "@/components/portal/portal-payment-timeline";
+import { formatCurrency } from "@/lib/utils";
 
 export default async function PortalPaymentsPage() {
   const session = await auth();
   const clientId = session?.user?.clientId;
   if (!clientId) redirect("/portal/login");
 
-  const [rentals, repairs, sales, cctv] = await Promise.all([
-    prisma.rental.findMany({
-      where: { clientId },
-      select: { id: true },
-    }),
-    prisma.repair.findMany({
-      where: { clientId },
-      select: { id: true },
-    }),
-    prisma.sale.findMany({
-      where: { clientId },
-      select: { id: true },
-    }),
-    prisma.cctvInstallation.findMany({
-      where: { clientId },
-      select: { id: true },
-    }),
-  ]);
+  const data = await getPortalClientData(clientId);
+  if (!data) redirect("/portal/login");
 
-  const payments = await prisma.payment.findMany({
-    where: {
-      OR: [
-        { rentalId: { in: rentals.map((r) => r.id) } },
-        { repairId: { in: repairs.map((r) => r.id) } },
-        { saleId: { in: sales.map((s) => s.id) } },
-        { cctvInstallationId: { in: cctv.map((c) => c.id) } },
-      ],
-    },
-    orderBy: { paidAt: "desc" },
-    include: {
-      rental: true,
-      repair: true,
-      sale: true,
-      cctvInstallation: true,
-    },
-  });
+  const payments: PortalPaymentItem[] = [];
+
+  for (const rental of data.rentals) {
+    for (const p of rental.payments) {
+      payments.push({
+        id: p.id,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        method: p.method,
+        reference: p.reference,
+        type: "Rental",
+        label: printerLabel(rental.printer),
+      });
+    }
+  }
+  for (const repair of data.repairs) {
+    for (const p of repair.payments) {
+      payments.push({
+        id: p.id,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        method: p.method,
+        reference: p.reference,
+        type: "Repair",
+        label: repair.title,
+      });
+    }
+  }
+  for (const sale of data.sales) {
+    for (const p of sale.payments) {
+      payments.push({
+        id: p.id,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        method: p.method,
+        reference: p.reference,
+        type: "Purchase",
+        label: sale.items,
+      });
+    }
+  }
+  for (const job of data.cctvJobs) {
+    for (const p of job.payments) {
+      payments.push({
+        id: p.id,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        method: p.method,
+        reference: p.reference,
+        type: "CCTV",
+        label: job.siteAddress ?? "CCTV installation",
+      });
+    }
+  }
+
+  payments.sort((a, b) => b.paidAt.getTime() - a.paidAt.getTime());
+  const lifetimeTotal = payments.reduce((sum, p) => sum + p.amount, 0);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Payment history</h1>
-      <Card>
-        <CardTitle>All payments</CardTitle>
-        <ul className="mt-4 divide-y text-sm">
-          {payments.map((p) => {
-            const type = p.rentalId
-              ? "Rental"
-              : p.repairId
-                ? "Repair"
-                : p.saleId
-                  ? "Sale"
-                  : "CCTV";
-            return (
-              <li key={p.id} className="flex justify-between py-3">
-                <div>
-                  <p className="font-medium">{type}</p>
-                  <p className="text-slate-500">{formatDate(p.paidAt)}</p>
-                </div>
-                <span className="font-semibold text-emerald-700">
-                  {formatCurrency(p.amount)}
-                </span>
-              </li>
-            );
-          })}
-          {payments.length === 0 && (
-            <li className="py-4 text-slate-500">No payments on record yet</li>
-          )}
-        </ul>
-      </Card>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Payment history</h1>
+          <p className="mt-1 text-slate-500">
+            All payments across rentals, repairs, purchases, and CCTV
+          </p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-3 text-right">
+          <p className="text-xs font-medium uppercase text-emerald-700">Lifetime paid</p>
+          <p className="text-2xl font-bold text-emerald-800">{formatCurrency(lifetimeTotal)}</p>
+        </div>
+      </div>
+
+      <PortalPaymentTimeline payments={payments} />
     </div>
   );
 }

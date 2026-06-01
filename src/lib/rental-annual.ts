@@ -22,7 +22,7 @@ export type MonthCell = {
   label: string;
   paid: number;
   expected: number | null;
-  state: "empty" | "expected" | "paid" | "partial" | "paused" | "stopped" | "out";
+  state: "empty" | "expected" | "paid" | "partial" | "paused" | "stopped" | "out" | "running";
 };
 
 /** True when the calendar month is after the current month (same year) or in a future year. */
@@ -119,6 +119,53 @@ function monthRange(year: number, month: number) {
   };
 }
 
+/** Monthly due date: rental start day in the start month, otherwise last day of the month. */
+export function monthlyPaymentDueDate(
+  startDate: Date,
+  year: number,
+  month: number
+): Date {
+  const { end: monthEnd } = monthRange(year, month);
+  const startedThisMonth =
+    startDate.getFullYear() === year && startDate.getMonth() === month;
+  if (startedThisMonth) {
+    return new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
+  }
+  return monthEnd;
+}
+
+export function isMonthlyPaymentDue(
+  startDate: Date,
+  year: number,
+  month: number,
+  now = new Date()
+): boolean {
+  return now.getTime() >= monthlyPaymentDueDate(startDate, year, month).getTime();
+}
+
+function resolveBillingMonthState(
+  rental: RentalBillingLike,
+  year: number,
+  month: number,
+  paid: number,
+  payable: number,
+  now = new Date()
+): MonthCell["state"] {
+  if (!isBillingMonth(rental.paymentSchedule, month)) return "empty";
+
+  if (paid >= payable - 0.01) return "paid";
+  if (!isMonthlyPaymentDue(rental.startDate, year, month, now)) return "running";
+  return "expected";
+}
+
 function isMonthInContract(
   rental: RentalBillingLike,
   year: number,
@@ -178,6 +225,7 @@ export function unpaidBillableMonths(
   for (let month = startMonth; month <= endMonth; month++) {
     if (!isMonthInContract(rental, year, month)) continue;
     if (!isBillingMonth(rental.paymentSchedule, month)) continue;
+    if (!isMonthlyPaymentDue(rental.startDate, year, month)) continue;
     const paid = paymentsInMonth(rental.payments, year, month);
     if (paid >= targetAmount - 0.01) continue;
     months.push(month);
@@ -185,7 +233,11 @@ export function unpaidBillableMonths(
   return months;
 }
 
-export function buildRentalAnnualRow(rental: RentalLike, year: number): RentalAnnualRow {
+export function buildRentalAnnualRow(
+  rental: RentalLike,
+  year: number,
+  now = new Date()
+): RentalAnnualRow {
   const payable = payableForRental(rental);
   const printerLabel = rental.printer
     ? [rental.printer.brand, rental.printer.model, rental.printer.serialNumber]
@@ -214,21 +266,23 @@ export function buildRentalAnnualRow(rental: RentalLike, year: number): RentalAn
 
     const billsThisMonth = isBillingMonth(rental.paymentSchedule, month);
     const expected = billsThisMonth ? payable : null;
-
-    let state: MonthCell["state"] = "empty";
-    if (paid > 0 && expected != null) {
-      state = paid >= expected - 0.01 ? "paid" : "partial";
-    } else if (paid > 0) {
-      state = "paid";
-    } else if (expected != null) {
-      state = "expected";
-    }
+    const state =
+      expected != null
+        ? resolveBillingMonthState(rental, year, month, paid, payable, now)
+        : "empty";
 
     return { month, label, paid, expected, state };
   });
 
   const yearPaid = months.reduce((s, m) => s + m.paid, 0);
-  const yearExpected = months.reduce((s, m) => s + (m.expected ?? 0), 0);
+  const yearExpected = months.reduce(
+    (s, m) =>
+      s +
+      (m.expected != null && m.state !== "running" && m.state !== "out" && m.state !== "empty"
+        ? m.expected
+        : 0),
+    0
+  );
 
   return {
     id: rental.id,
@@ -271,20 +325,23 @@ function mergeMonthCells(cells: MonthCell[]): MonthCell {
     billingPaused.length > 0 &&
     billingPaused.length === inContract.filter((c) => c.expected != null).length;
 
+  if (expected != null && paid >= expected - 0.01) {
+    return { month, label, paid, expected, state: "paid" };
+  }
+  if (inContract.some((c) => c.state === "expected")) {
+    return { month, label, paid, expected, state: "expected" };
+  }
   if (paid > 0 && expected != null) {
-    return {
-      month,
-      label,
-      paid,
-      expected,
-      state: paid >= expected - 0.01 ? "paid" : "partial",
-    };
+    return { month, label, paid, expected, state: "expected" };
   }
   if (paid > 0) {
     return { month, label, paid, expected, state: "paid" };
   }
   if (allBillingPaused && expected != null) {
     return { month, label, paid, expected, state: "paused" };
+  }
+  if (inContract.some((c) => c.state === "running")) {
+    return { month, label, paid, expected, state: "running" };
   }
   if (expected != null) {
     return { month, label, paid, expected, state: "expected" };
@@ -295,7 +352,12 @@ function mergeMonthCells(cells: MonthCell[]): MonthCell {
 function applyClientStoppedMonths(months: MonthCell[]): MonthCell[] {
   return months.map((cell) => {
     if (cell.state === "out" || cell.paid > 0) return cell;
-    if (cell.expected != null || cell.state === "expected" || cell.state === "paused") {
+    if (
+      cell.expected != null ||
+      cell.state === "expected" ||
+      cell.state === "paused" ||
+      cell.state === "running"
+    ) {
       return { ...cell, state: "stopped" as const };
     }
     return cell;
@@ -303,7 +365,11 @@ function applyClientStoppedMonths(months: MonthCell[]): MonthCell[] {
 }
 
 /** One row per client with monthly totals summed across all rental units. */
-export function buildClientAnnualRows(rentals: RentalLike[], year: number): ClientAnnualRow[] {
+export function buildClientAnnualRows(
+  rentals: RentalLike[],
+  year: number,
+  now = new Date()
+): ClientAnnualRow[] {
   const byClient = new Map<string, RentalLike[]>();
 
   for (const rental of rentals) {
@@ -316,7 +382,7 @@ export function buildClientAnnualRows(rentals: RentalLike[], year: number): Clie
 
   for (const [, clientRentals] of byClient) {
     const clientStatus = clientRentals[0].client.status;
-    const unitRows = clientRentals.map((r) => buildRentalAnnualRow(r, year));
+    const unitRows = clientRentals.map((r) => buildRentalAnnualRow(r, year, now));
     let months = MONTH_LABELS.map((label, month) =>
       mergeMonthCells(unitRows.map((r) => r.months[month]))
     );
@@ -324,7 +390,17 @@ export function buildClientAnnualRows(rentals: RentalLike[], year: number): Clie
       months = applyClientStoppedMonths(months);
     }
     const yearPaid = months.reduce((s, m) => s + m.paid, 0);
-    const yearExpected = months.reduce((s, m) => s + (m.expected ?? 0), 0);
+    const yearExpected = months.reduce(
+      (s, m) =>
+        s +
+        (m.expected != null &&
+        m.state !== "running" &&
+        m.state !== "out" &&
+        m.state !== "empty"
+          ? m.expected
+          : 0),
+      0
+    );
 
     rows.push({
       clientId: clientRentals[0].client.id,

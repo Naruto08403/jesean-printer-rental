@@ -6,13 +6,13 @@ import { Search, X } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { GenerateBillingModal } from "@/components/forms/generate-billing-modal";
 import { formatCurrency } from "@/lib/utils";
 import {
   buildClientAnnualRows,
   buildRentalAnnualRow,
   defaultRentalAnnualYear,
   isFutureMonth,
-  isPastMonth,
   MONTH_LABELS,
   rentalAnnualYearOptions,
   type RentalAnnualRow,
@@ -85,24 +85,35 @@ function MonthCellView({
       </span>
     );
   }
+  if (cell.state === "running") {
+    return (
+      <span className="text-xs font-medium text-brand-600" title="Active — not due yet">
+        {cell.paid > 0 ? (
+          <span className="font-medium text-emerald-700">{formatCurrency(cell.paid)}</span>
+        ) : (
+          "run"
+        )}
+      </span>
+    );
+  }
   if (cell.paid > 0) {
     const fullyPaid = cell.state === "paid";
     return (
       <span
         className={
-          fullyPaid ? "font-medium text-emerald-700" : "font-medium text-amber-700"
+          fullyPaid ? "font-medium text-emerald-700" : "font-medium text-red-600"
         }
       >
         {formatCurrency(cell.paid)}
       </span>
     );
   }
+  if (cell.state === "expected" && cell.expected != null) {
+    return (
+      <span className="font-medium text-red-600">{formatCurrency(cell.expected)}</span>
+    );
+  }
   if (cell.expected != null) {
-    if (isPastMonth(year, cell.month)) {
-      return (
-        <span className="font-medium text-red-600">{formatCurrency(cell.expected)}</span>
-      );
-    }
     return <span className="text-slate-400">{formatCurrency(cell.expected)}</span>;
   }
   return <span className="text-slate-300">—</span>;
@@ -116,7 +127,18 @@ const statusColor: Record<string, "green" | "amber" | "slate" | "red"> = {
   CANCELLED: "red",
 };
 
-export function RentalsAnnualView({ rentals }: { rentals: RentalInput[] }) {
+export function RentalsAnnualView({
+  rentals,
+  billingClients = [],
+}: {
+  rentals: RentalInput[];
+  billingClients?: {
+    id: string;
+    label: string;
+    monthlyPayable: number;
+    unitCount: number;
+  }[];
+}) {
   const years = rentalAnnualYearOptions();
   const [year, setYear] = useState(defaultRentalAnnualYear());
   const [query, setQuery] = useState("");
@@ -257,12 +279,22 @@ export function RentalsAnnualView({ rentals }: { rentals: RentalInput[] }) {
                   </Badge>
                 </td>
                 <td className="px-2 py-2 text-right">
-                  <Link
-                    href={`/dashboard/clients/${row.clientId}`}
-                    className="text-brand-600 hover:underline"
-                  >
-                    View
-                  </Link>
+                  <div className="flex items-center justify-end gap-1">
+                    {billingClients.length > 0 && (
+                      <GenerateBillingModal
+                        clients={billingClients}
+                        defaultClientId={row.clientId}
+                        triggerLabel="Billing"
+                        triggerVariant="ghost"
+                      />
+                    )}
+                    <Link
+                      href={`/dashboard/clients/${row.clientId}`}
+                      className="text-brand-600 hover:underline"
+                    >
+                      View
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}
