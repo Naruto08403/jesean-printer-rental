@@ -17,7 +17,7 @@ import {
   rentalAnnualYearOptions,
   type RentalAnnualRow,
 } from "@/lib/rental-annual";
-import type { PaymentSchedule, RentalStatus } from "@prisma/client";
+import type { ClientStatus, PaymentSchedule, RentalStatus } from "@prisma/client";
 
 type RentalInput = {
   id: string;
@@ -26,8 +26,11 @@ type RentalInput = {
   endDate: string | null;
   ratePerPeriod: number;
   paymentSchedule: PaymentSchedule;
-  client: { id: string; name: string };
-  printer: { brand: string | null; model: string | null; serialNumber: string | null } | null;
+  client: { id: string; name: string; status: ClientStatus };
+  printer:
+    | { brand: string | null; model: string | null; serialNumber: string | null; price?: number | null }
+    | null;
+  pausePeriods?: { pausedAt: string; resumedAt: string | null }[];
   payments: { amount: number; paidAt: string }[];
 };
 
@@ -36,6 +39,10 @@ function toRentalLike(r: RentalInput) {
     ...r,
     startDate: new Date(r.startDate),
     endDate: r.endDate ? new Date(r.endDate) : null,
+    pausePeriods: (r.pausePeriods ?? []).map((p) => ({
+      pausedAt: new Date(p.pausedAt),
+      resumedAt: p.resumedAt ? new Date(p.resumedAt) : null,
+    })),
     payments: r.payments.map((p) => ({
       amount: p.amount,
       paidAt: new Date(p.paidAt),
@@ -67,6 +74,17 @@ function MonthCellView({
       </span>
     );
   }
+  if (cell.state === "stopped") {
+    return (
+      <span className="text-xs font-medium text-amber-700" title="Client stopped — no billing">
+        {cell.paid > 0 ? (
+          <span className="font-medium text-emerald-700">{formatCurrency(cell.paid)}</span>
+        ) : (
+          "stop"
+        )}
+      </span>
+    );
+  }
   if (cell.paid > 0) {
     const fullyPaid = cell.state === "paid";
     return (
@@ -93,6 +111,7 @@ function MonthCellView({
 const statusColor: Record<string, "green" | "amber" | "slate" | "red"> = {
   ACTIVE: "green",
   PAUSED: "amber",
+  STOPPED: "amber",
   COMPLETED: "slate",
   CANCELLED: "red",
 };
@@ -177,7 +196,8 @@ export function RentalsAnnualView({ rentals }: { rentals: RentalInput[] }) {
         </div>
         <p className="text-xs text-slate-500">
           Auto-renew · <span className="text-emerald-700">paid</span> ·{" "}
-          <span className="text-red-600">overdue</span> · future hidden
+          <span className="text-red-600">overdue</span> ·{" "}
+          <span className="text-amber-700">stop/pause</span> · future hidden
         </p>
       </div>
 
@@ -231,7 +251,9 @@ export function RentalsAnnualView({ rentals }: { rentals: RentalInput[] }) {
                 </td>
                 <td className="px-2 py-2">
                   <Badge color={statusColor[row.status] ?? "slate"}>
-                    {row.status.replace("_", " ")}
+                    {row.status === "STOPPED"
+                      ? "Stop"
+                      : row.status.replace("_", " ")}
                   </Badge>
                 </td>
                 <td className="px-2 py-2 text-right">

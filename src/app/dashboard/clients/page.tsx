@@ -32,6 +32,7 @@ export default async function ClientsPage() {
               <th className="px-4 py-3 font-medium">Email</th>
               <th className="px-4 py-3 font-medium">Phone</th>
               <th className="px-4 py-3 font-medium">Company</th>
+              <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Portal</th>
               <th className="px-4 py-3 font-medium" />
             </tr>
@@ -39,7 +40,7 @@ export default async function ClientsPage() {
           <tbody>
             {clients.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   No clients yet. Add one or import CSV.
                 </td>
               </tr>
@@ -62,6 +63,13 @@ export default async function ClientsPage() {
                 <td className="px-4 py-3 text-slate-600">{c.phone ?? "—"}</td>
                 <td className="px-4 py-3 text-slate-600">{c.company ?? "—"}</td>
                 <td className="px-4 py-3">
+                  {c.status === "STOPPED" ? (
+                    <Badge color="amber">Stop</Badge>
+                  ) : (
+                    <Badge color="green">Active</Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3">
                   {c.user ? (
                     <Badge color="green">Active</Badge>
                   ) : (
@@ -78,7 +86,7 @@ export default async function ClientsPage() {
                 </td>
               </tr>
             ))}
-            <SearchNoMatchRow colSpan={6} />
+            <SearchNoMatchRow colSpan={7} />
           </tbody>
         </DataTableElement>
       </SearchableDataTable>

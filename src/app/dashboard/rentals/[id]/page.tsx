@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { RentalPausePeriodsCard } from "@/components/rental-pause-periods-card";
 
 const statusBadge: Record<string, "green" | "amber" | "slate" | "red"> = {
   ACTIVE: "green",
@@ -40,6 +41,7 @@ export default async function RentalDetailPage({
       printer: true,
       payments: { orderBy: { paidAt: "desc" } },
       auditLogs: { orderBy: { createdAt: "desc" } },
+      pausePeriods: { orderBy: { pausedAt: "asc" } },
     },
   });
   if (!rental) notFound();
@@ -51,17 +53,27 @@ export default async function RentalDetailPage({
     endDate: rental.endDate?.toISOString() ?? null,
     ratePerPeriod: rental.ratePerPeriod,
     paymentSchedule: rental.paymentSchedule,
-    client: { id: rental.client.id, name: rental.client.name },
+    client: {
+      id: rental.client.id,
+      name: rental.client.name,
+      status: rental.client.status,
+    },
     printer: rental.printer
       ? {
           brand: rental.printer.brand,
           model: rental.printer.model,
           serialNumber: rental.printer.serialNumber,
+          price: rental.printer.price,
         }
       : null,
     payments: rental.payments.map((p) => ({
       amount: p.amount,
       paidAt: p.paidAt.toISOString(),
+    })),
+    pausePeriods: rental.pausePeriods.map((pp) => ({
+      id: pp.id,
+      pausedAt: pp.pausedAt.toISOString(),
+      resumedAt: pp.resumedAt?.toISOString() ?? null,
     })),
   };
 
@@ -93,7 +105,7 @@ export default async function RentalDetailPage({
             {rental.endDate && ` · Contract end ${formatDate(rental.endDate)} (auto-renews)`}
           </p>
           <p className="text-sm text-slate-500">
-            Rate: {formatCurrency(rental.ratePerPeriod)} /{" "}
+            Rate: {formatCurrency(rental.printer?.price ?? rental.ratePerPeriod)} /{" "}
             {rental.paymentSchedule.toLowerCase().replace("ly", "")}
           </p>
         </div>
@@ -148,6 +160,20 @@ export default async function RentalDetailPage({
           )}
         </Card>
       </div>
+
+      <Card>
+        <CardTitle>Billing pause periods</CardTitle>
+        <div className="mt-4">
+          <RentalPausePeriodsCard
+            rentalId={rental.id}
+            pausePeriods={rental.pausePeriods.map((pp) => ({
+              id: pp.id,
+              pausedAt: pp.pausedAt.toISOString(),
+              resumedAt: pp.resumedAt?.toISOString() ?? null,
+            }))}
+          />
+        </div>
+      </Card>
 
       <Card>
         <CardTitle>Rental audit log</CardTitle>

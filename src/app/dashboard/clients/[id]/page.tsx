@@ -4,6 +4,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { updateClient, createClientPortalLogin } from "@/actions/clients";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -40,6 +41,17 @@ export default async function ClientDetailPage({
             <div>
               <Label htmlFor="name">Name *</Label>
               <Input id="name" name="name" defaultValue={client.name} required />
+            </div>
+            <div>
+              <Label htmlFor="status">Status *</Label>
+              <Select
+                id="status"
+                name="status"
+                defaultValue={client.status}
+              >
+                <option value="ACTIVE">Active</option>
+                <option value="STOPPED">Stop (vacation / no classes)</option>
+              </Select>
             </div>
             <div>
               <Label htmlFor="email">Email</Label>

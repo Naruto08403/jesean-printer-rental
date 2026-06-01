@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 export function AddClientModal() {
   const [open, setOpen] = useState(false);
@@ -34,6 +35,13 @@ export function AddClientModal() {
           <div>
             <Label htmlFor="name">Name *</Label>
             <Input id="name" name="name" required />
+          </div>
+          <div>
+            <Label htmlFor="status">Status *</Label>
+            <Select id="status" name="status" defaultValue="ACTIVE">
+              <option value="ACTIVE">Active</option>
+              <option value="STOPPED">Stop (vacation / no classes)</option>
+            </Select>
           </div>
           <div>
             <Label htmlFor="email">Email</Label>

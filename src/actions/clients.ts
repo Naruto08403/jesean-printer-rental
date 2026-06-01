@@ -9,6 +9,7 @@ import { z } from "zod";
 
 const clientSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  status: z.enum(["ACTIVE", "STOPPED"]).optional(),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
   address: z.string().optional(),
@@ -20,6 +21,7 @@ export async function createClient(formData: FormData) {
   await requireAdmin();
   const parsed = clientSchema.parse({
     name: formData.get("name"),
+    status: formData.get("status") || "ACTIVE",
     email: formData.get("email") || undefined,
     phone: formData.get("phone") || undefined,
     address: formData.get("address") || undefined,
@@ -30,6 +32,7 @@ export async function createClient(formData: FormData) {
   await prisma.client.create({
     data: {
       name: parsed.name,
+      status: parsed.status ?? "ACTIVE",
       email: parsed.email || null,
       phone: parsed.phone || null,
       address: parsed.address || null,
@@ -38,12 +41,14 @@ export async function createClient(formData: FormData) {
     },
   });
   revalidatePath("/dashboard/clients");
+  revalidatePath("/dashboard/rentals");
 }
 
 export async function updateClient(id: string, formData: FormData) {
   await requireAdmin();
   const parsed = clientSchema.parse({
     name: formData.get("name"),
+    status: formData.get("status") || "ACTIVE",
     email: formData.get("email") || undefined,
     phone: formData.get("phone") || undefined,
     address: formData.get("address") || undefined,
@@ -55,6 +60,7 @@ export async function updateClient(id: string, formData: FormData) {
     where: { id },
     data: {
       name: parsed.name,
+      status: parsed.status ?? "ACTIVE",
       email: parsed.email || null,
       phone: parsed.phone || null,
       address: parsed.address || null,
@@ -63,6 +69,7 @@ export async function updateClient(id: string, formData: FormData) {
     },
   });
   revalidatePath("/dashboard/clients");
+  revalidatePath("/dashboard/rentals");
   revalidatePath(`/dashboard/clients/${id}`);
 }
 
@@ -86,9 +93,14 @@ export async function importClientsFromCsv(csvText: string) {
       row.full_name?.trim();
     if (!name) continue;
 
+    const statusRaw = row.status?.trim().toUpperCase();
+    const status =
+      statusRaw === "STOPPED" || statusRaw === "STOP" ? "STOPPED" : "ACTIVE";
+
     await prisma.client.create({
       data: {
         name,
+        status,
         email: row.email?.trim() || null,
         phone: row.phone?.trim() || row.mobile?.trim() || null,
         address: row.address?.trim() || null,

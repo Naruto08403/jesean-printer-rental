@@ -57,6 +57,11 @@ enum AuditAction {
   NOTE
 }
 
+enum ClientStatus {
+  ACTIVE
+  STOPPED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String?  @unique
@@ -72,6 +77,7 @@ model User {
 model Client {
   id        String             @id @default(cuid())
   name      String
+  status    ClientStatus       @default(ACTIVE)
   email     String?
   phone     String?
   address   String?
@@ -92,6 +98,7 @@ model Printer {
   serialNumber String?           @unique
   brand        String?
   model        String?
+  price        Float?
   status       PrinterStatus     @default(AVAILABLE)
   notes        String?
   rentals      Rental[]
@@ -127,8 +134,18 @@ model Rental {
   description     String?
   payments        Payment[]
   auditLogs       RentalAuditLog[]
+  pausePeriods    RentalPausePeriod[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+}
+
+model RentalPausePeriod {
+  id        String   @id @default(cuid())
+  rentalId  String
+  rental    Rental   @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  pausedAt  DateTime
+  resumedAt DateTime?
+  createdAt DateTime @default(now())
 }
 
 model RentalAuditLog {

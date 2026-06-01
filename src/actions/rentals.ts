@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, auth } from "@/lib/auth";
 import { logPrinterAudit } from "@/lib/audit";
 import { logRentalAudit, rentalStatusAuditMessage } from "@/lib/rental-audit";
+import {
+  formatPausePeriodRange,
+  pausePeriodDatesFromMonths,
+} from "@/lib/rental-pause";
 import type { PaymentSchedule, RentalStatus } from "@prisma/client";
 import Papa from "papaparse";
 
@@ -138,6 +142,14 @@ export async function importRentalsFromCsv(csvText: string) {
         description: row.description?.trim() || null,
       },
     });
+    if (rentalStatus === "PAUSED") {
+      await prisma.rentalPausePeriod.create({
+        data: {
+          rentalId: rental.id,
+          pausedAt: rental.startDate,
+        },
+      });
+    }
 
     await logRentalAudit(rental.id, "CREATED", "Rental imported from CSV", {
       userEmail: session?.user?.email,
@@ -173,11 +185,25 @@ export async function updateRentalStatus(id: string, status: RentalStatus) {
   if (!before) throw new Error("Rental not found");
   if (before.status === status) return;
 
+  const now = new Date();
+
   const rental = await prisma.rental.update({
     where: { id },
     data: { status },
     include: { printer: true },
   });
+
+  if (before.status !== "PAUSED" && status === "PAUSED") {
+    await prisma.rentalPausePeriod.create({
+      data: { rentalId: id, pausedAt: now },
+    });
+  }
+  if (before.status === "PAUSED" && status !== "PAUSED") {
+    await prisma.rentalPausePeriod.updateMany({
+      where: { rentalId: id, resumedAt: null },
+      data: { resumedAt: now },
+    });
+  }
 
   const { action, message } = rentalStatusAuditMessage(before.status, status);
   await logRentalAudit(rental.id, action, message, {
@@ -223,6 +249,127 @@ export async function updateRentalStatus(id: string, status: RentalStatus) {
 
   revalidatePath(`/dashboard/rentals/${id}`);
   revalidatePath("/dashboard/rentals");
+}
+
+function parsePauseMonths(formData: FormData) {
+  const year = Number(formData.get("year"));
+  const startMonth = Number(formData.get("startMonth"));
+  const endMonthRaw = String(formData.get("endMonth") ?? "").trim();
+  const endMonth = endMonthRaw === "" ? startMonth : Number(endMonthRaw);
+
+  if (!Number.isFinite(year) || year < 2000) throw new Error("Invalid year");
+  if (!Number.isInteger(startMonth) || startMonth < 0 || startMonth > 11) {
+    throw new Error("Invalid start month");
+  }
+  if (
+    endMonth != null &&
+    (!Number.isInteger(endMonth) || endMonth < startMonth || endMonth > 11)
+  ) {
+    throw new Error("End month must be on or after start month");
+  }
+
+  return { year, startMonth, endMonth };
+}
+
+export async function addRentalPausePeriod(rentalId: string, formData: FormData) {
+  await requireAdmin();
+  const session = await auth();
+  const { year, startMonth, endMonth } = parsePauseMonths(formData);
+  const { pausedAt, resumedAt } = pausePeriodDatesFromMonths(year, startMonth, endMonth);
+
+  await prisma.rentalPausePeriod.create({
+    data: { rentalId, pausedAt, resumedAt },
+  });
+
+  await logRentalAudit(
+    rentalId,
+    "NOTE",
+    `Billing pause added: ${formatPausePeriodRange(pausedAt, resumedAt)}`,
+    { userEmail: session?.user?.email }
+  );
+
+  revalidatePath(`/dashboard/rentals/${rentalId}`);
+  revalidatePath("/dashboard/rentals");
+}
+
+export async function deleteRentalPausePeriod(id: string) {
+  await requireAdmin();
+  const session = await auth();
+
+  const period = await prisma.rentalPausePeriod.findUnique({ where: { id } });
+  if (!period) throw new Error("Pause period not found");
+
+  await prisma.rentalPausePeriod.delete({ where: { id } });
+
+  await logRentalAudit(
+    period.rentalId,
+    "NOTE",
+    `Billing pause removed: ${formatPausePeriodRange(period.pausedAt, period.resumedAt)}`,
+    { userEmail: session?.user?.email }
+  );
+
+  revalidatePath(`/dashboard/rentals/${period.rentalId}`);
+  revalidatePath("/dashboard/rentals");
+}
+
+export async function addClientPausePeriod(clientId: string, formData: FormData) {
+  await requireAdmin();
+  const session = await auth();
+  const { year, startMonth, endMonth } = parsePauseMonths(formData);
+  const { pausedAt, resumedAt } = pausePeriodDatesFromMonths(year, startMonth, endMonth);
+
+  const rentals = await prisma.rental.findMany({
+    where: {
+      clientId,
+      status: { in: ["ACTIVE", "PAUSED"] },
+    },
+  });
+  if (rentals.length === 0) throw new Error("No active rentals for this client");
+
+  const label = formatPausePeriodRange(pausedAt, resumedAt);
+
+  await prisma.$transaction(
+    rentals.map((rental) =>
+      prisma.rentalPausePeriod.create({
+        data: { rentalId: rental.id, pausedAt, resumedAt },
+      })
+    )
+  );
+
+  for (const rental of rentals) {
+    await logRentalAudit(rental.id, "NOTE", `Billing pause added (all units): ${label}`, {
+      userEmail: session?.user?.email,
+    });
+  }
+
+  revalidatePath("/dashboard/rentals");
+}
+
+export async function deleteClientPausePeriods(ids: string[]) {
+  await requireAdmin();
+  const session = await auth();
+  if (ids.length === 0) return;
+
+  const periods = await prisma.rentalPausePeriod.findMany({
+    where: { id: { in: ids } },
+  });
+  if (periods.length === 0) return;
+
+  const label = formatPausePeriodRange(periods[0].pausedAt, periods[0].resumedAt);
+  const rentalIds = new Set(periods.map((p) => p.rentalId));
+
+  await prisma.rentalPausePeriod.deleteMany({ where: { id: { in: ids } } });
+
+  for (const rentalId of rentalIds) {
+    await logRentalAudit(rentalId, "NOTE", `Billing pause removed (all units): ${label}`, {
+      userEmail: session?.user?.email,
+    });
+  }
+
+  revalidatePath("/dashboard/rentals");
+  for (const rentalId of rentalIds) {
+    revalidatePath(`/dashboard/rentals/${rentalId}`);
+  }
 }
 
 export async function addRentalNote(rentalId: string, note: string) {

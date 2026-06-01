@@ -43,6 +43,10 @@ export function AddPrinterModal() {
             <Label htmlFor="model">Model</Label>
             <Input id="model" name="model" />
           </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="price">Price (PHP)</Label>
+            <Input id="price" name="price" type="number" step="0.01" min="0" />
+          </div>
           <div className="flex justify-end gap-2 sm:col-span-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancel

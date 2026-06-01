@@ -13,15 +13,20 @@ export async function createPrinter(formData: FormData) {
   const serialNumber = String(formData.get("serialNumber") || "").trim() || null;
   const brand = String(formData.get("brand") || "").trim() || null;
   const model = String(formData.get("model") || "").trim() || null;
+  const priceRaw = String(formData.get("price") || "").trim();
+  const price = priceRaw ? Number(priceRaw) : null;
   const notes = String(formData.get("notes") || "").trim() || null;
+  if (price != null && (!Number.isFinite(price) || price < 0)) {
+    throw new Error("Invalid price");
+  }
 
   const printer = await prisma.printer.create({
-    data: { serialNumber, brand, model, notes },
+    data: { serialNumber, brand, model, price, notes },
   });
 
   await logPrinterAudit(printer.id, "CREATED", "Printer added to inventory", {
     userEmail: session?.user?.email,
-    metadata: { serialNumber, brand, model },
+    metadata: { serialNumber, brand, model, price },
   });
 
   revalidatePath("/dashboard/printers");
@@ -31,10 +36,16 @@ export async function updatePrinter(id: string, formData: FormData) {
   await requireAdmin();
   const session = await auth();
   const status = formData.get("status") as PrinterStatus;
+  const priceRaw = String(formData.get("price") || "").trim();
+  const price = priceRaw ? Number(priceRaw) : null;
+  if (price != null && (!Number.isFinite(price) || price < 0)) {
+    throw new Error("Invalid price");
+  }
   const data = {
     serialNumber: String(formData.get("serialNumber") || "").trim() || null,
     brand: String(formData.get("brand") || "").trim() || null,
     model: String(formData.get("model") || "").trim() || null,
+    price,
     notes: String(formData.get("notes") || "").trim() || null,
     status,
   };
@@ -86,12 +97,17 @@ export async function importPrintersFromCsv(csvText: string) {
       "RETIRED",
     ];
     const printerStatus = validStatuses.includes(status) ? status : "AVAILABLE";
+    const parsedPrice = row.price?.trim() ? Number(row.price.trim()) : null;
+    const price = parsedPrice != null && Number.isFinite(parsedPrice) && parsedPrice >= 0
+      ? parsedPrice
+      : null;
 
     const printer = await prisma.printer.create({
       data: {
         serialNumber,
         brand: row.brand?.trim() || null,
         model: row.model?.trim() || null,
+        price,
         notes: [row.notes?.trim(), row.client_name?.trim() && `Client: ${row.client_name.trim()}`]
           .filter(Boolean)
           .join(" · ") || null,

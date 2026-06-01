@@ -1,4 +1,4 @@
-import type { PaymentSchedule, RentalStatus } from "@prisma/client";
+import type { ClientStatus, PaymentSchedule, PrinterStatus, RentalStatus } from "@prisma/client";
 
 export const RENTAL_ANNUAL_START_YEAR = 2026;
 
@@ -22,7 +22,7 @@ export type MonthCell = {
   label: string;
   paid: number;
   expected: number | null;
-  state: "empty" | "expected" | "paid" | "partial" | "paused" | "out";
+  state: "empty" | "expected" | "paid" | "partial" | "paused" | "stopped" | "out";
 };
 
 /** True when the calendar month is after the current month (same year) or in a future year. */
@@ -56,7 +56,8 @@ export type ClientAnnualRow = {
   clientName: string;
   unitCount: number;
   rentalIds: string[];
-  status: RentalStatus;
+  status: RentalStatus | ClientStatus;
+  clientStatus: ClientStatus;
   months: MonthCell[];
   yearPaid: number;
   yearExpected: number;
@@ -69,10 +70,24 @@ type RentalLike = {
   endDate: Date | null;
   ratePerPeriod: number;
   paymentSchedule: PaymentSchedule;
-  client: { id: string; name: string };
-  printer: { brand: string | null; model: string | null; serialNumber: string | null } | null;
+  client: { id: string; name: string; status: ClientStatus };
+  printer:
+    | { brand: string | null; model: string | null; serialNumber: string | null; price?: number | null }
+    | null;
+  pausePeriods?: { pausedAt: Date; resumedAt: Date | null }[];
   payments: { amount: number; paidAt: Date }[];
 };
+
+export type RentalBillingLike = Pick<
+  RentalLike,
+  "id" | "status" | "startDate" | "endDate" | "ratePerPeriod" | "paymentSchedule" | "payments"
+> & {
+  printer?: RentalLike["printer"];
+};
+
+function payableForRental(rental: { ratePerPeriod: number; printer?: { price?: number | null } | null }) {
+  return rental.printer?.price ?? rental.ratePerPeriod;
+}
 
 export function rentalAnnualYearOptions(now = new Date()): number[] {
   const max = Math.max(RENTAL_ANNUAL_START_YEAR, now.getFullYear() + 1);
@@ -105,7 +120,7 @@ function monthRange(year: number, month: number) {
 }
 
 function isMonthInContract(
-  rental: RentalLike,
+  rental: RentalBillingLike,
   year: number,
   month: number
 ): boolean {
@@ -126,7 +141,18 @@ function isBillingMonth(schedule: PaymentSchedule, month: number): boolean {
   return true;
 }
 
-function paymentsInMonth(
+function isMonthPausedByHistory(rental: RentalLike, year: number, month: number): boolean {
+  const periods = rental.pausePeriods ?? [];
+  if (periods.length === 0) return false;
+  const { start, end } = monthRange(year, month);
+  return periods.some((period) => {
+    const pausedStart = new Date(period.pausedAt);
+    const pausedEnd = period.resumedAt ? new Date(period.resumedAt) : new Date(8640000000000000);
+    return pausedStart <= end && pausedEnd >= start;
+  });
+}
+
+export function paymentsInMonth(
   payments: { amount: number; paidAt: Date }[],
   year: number,
   month: number
@@ -139,7 +165,28 @@ function paymentsInMonth(
     .reduce((sum, p) => sum + p.amount, 0);
 }
 
+/** Months in range that are billable and not yet fully paid for a rental. */
+export function unpaidBillableMonths(
+  rental: RentalBillingLike,
+  year: number,
+  startMonth: number,
+  endMonth: number,
+  fullPaymentAmount?: number
+): number[] {
+  const targetAmount = fullPaymentAmount ?? payableForRental(rental);
+  const months: number[] = [];
+  for (let month = startMonth; month <= endMonth; month++) {
+    if (!isMonthInContract(rental, year, month)) continue;
+    if (!isBillingMonth(rental.paymentSchedule, month)) continue;
+    const paid = paymentsInMonth(rental.payments, year, month);
+    if (paid >= targetAmount - 0.01) continue;
+    months.push(month);
+  }
+  return months;
+}
+
 export function buildRentalAnnualRow(rental: RentalLike, year: number): RentalAnnualRow {
+  const payable = payableForRental(rental);
   const printerLabel = rental.printer
     ? [rental.printer.brand, rental.printer.model, rental.printer.serialNumber]
         .filter(Boolean)
@@ -153,20 +200,20 @@ export function buildRentalAnnualRow(rental: RentalLike, year: number): RentalAn
       return { month, label, paid: 0, expected: null, state: "out" as const };
     }
 
-    if (rental.status === "PAUSED") {
+    if (rental.status === "PAUSED" || isMonthPausedByHistory(rental, year, month)) {
       return {
         month,
         label,
         paid,
         expected: isBillingMonth(rental.paymentSchedule, month)
-          ? rental.ratePerPeriod
+          ? payable
           : null,
         state: "paused" as const,
       };
     }
 
     const billsThisMonth = isBillingMonth(rental.paymentSchedule, month);
-    const expected = billsThisMonth ? rental.ratePerPeriod : null;
+    const expected = billsThisMonth ? payable : null;
 
     let state: MonthCell["state"] = "empty";
     if (paid > 0 && expected != null) {
@@ -189,7 +236,7 @@ export function buildRentalAnnualRow(rental: RentalLike, year: number): RentalAn
     clientName: rental.client.name,
     printerLabel,
     status: rental.status,
-    ratePerPeriod: rental.ratePerPeriod,
+    ratePerPeriod: payable,
     months,
     yearPaid,
     yearExpected,
@@ -245,6 +292,16 @@ function mergeMonthCells(cells: MonthCell[]): MonthCell {
   return { month, label, paid, expected, state: "empty" };
 }
 
+function applyClientStoppedMonths(months: MonthCell[]): MonthCell[] {
+  return months.map((cell) => {
+    if (cell.state === "out" || cell.paid > 0) return cell;
+    if (cell.expected != null || cell.state === "expected" || cell.state === "paused") {
+      return { ...cell, state: "stopped" as const };
+    }
+    return cell;
+  });
+}
+
 /** One row per client with monthly totals summed across all rental units. */
 export function buildClientAnnualRows(rentals: RentalLike[], year: number): ClientAnnualRow[] {
   const byClient = new Map<string, RentalLike[]>();
@@ -258,10 +315,14 @@ export function buildClientAnnualRows(rentals: RentalLike[], year: number): Clie
   const rows: ClientAnnualRow[] = [];
 
   for (const [, clientRentals] of byClient) {
+    const clientStatus = clientRentals[0].client.status;
     const unitRows = clientRentals.map((r) => buildRentalAnnualRow(r, year));
-    const months = MONTH_LABELS.map((label, month) =>
+    let months = MONTH_LABELS.map((label, month) =>
       mergeMonthCells(unitRows.map((r) => r.months[month]))
     );
+    if (clientStatus === "STOPPED") {
+      months = applyClientStoppedMonths(months);
+    }
     const yearPaid = months.reduce((s, m) => s + m.paid, 0);
     const yearExpected = months.reduce((s, m) => s + (m.expected ?? 0), 0);
 
@@ -270,7 +331,11 @@ export function buildClientAnnualRows(rentals: RentalLike[], year: number): Clie
       clientName: clientRentals[0].client.name,
       unitCount: clientRentals.length,
       rentalIds: clientRentals.map((r) => r.id),
-      status: groupStatus(clientRentals.map((r) => r.status)),
+      status:
+        clientStatus === "STOPPED"
+          ? "STOPPED"
+          : groupStatus(clientRentals.map((r) => r.status)),
+      clientStatus,
       months,
       yearPaid,
       yearExpected,
@@ -281,3 +346,37 @@ export function buildClientAnnualRows(rentals: RentalLike[], year: number): Clie
 }
 
 export { MONTH_LABELS };
+
+type RentalRateLike = {
+  status: RentalStatus;
+  ratePerPeriod: number;
+  paymentSchedule: PaymentSchedule;
+  printer?: { price?: number | null; status?: PrinterStatus } | null;
+};
+
+/** Client-level monthly payable and per-unit amount for payment forms. */
+export function getClientPaymentSuggestion(rentals: RentalRateLike[]): {
+  monthlyPayable: number;
+  suggestedAmount: number;
+  unitCount: number;
+} | null {
+  const activeUnits = rentals.filter((r) => {
+    if (r.status !== "ACTIVE") return false;
+    if (r.printer && r.printer.status && r.printer.status !== "RENTED") return false;
+    return true;
+  });
+  if (activeUnits.length === 0) return null;
+
+  const monthlyRentals = activeUnits.filter((r) => r.paymentSchedule === "MONTHLY");
+  const billed = monthlyRentals.length > 0 ? monthlyRentals : activeUnits;
+  const monthlyPayable = billed.reduce((sum, r) => sum + payableForRental(r), 0);
+  const unitCount = activeUnits.length;
+  const rates = activeUnits.map((r) => payableForRental(r));
+  const allSame = rates.every((rate) => Math.abs(rate - rates[0]) < 0.01);
+
+  const suggestedAmount = allSame
+    ? rates[0]
+    : Math.round((monthlyPayable / unitCount) * 100) / 100;
+
+  return { monthlyPayable, suggestedAmount, unitCount };
+}

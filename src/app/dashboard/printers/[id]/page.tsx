@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import Link from "next/link";
-import { formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 export default async function PrinterDetailPage({
@@ -63,6 +63,21 @@ export default async function PrinterDetailPage({
             <div>
               <Label>Model</Label>
               <Input name="model" defaultValue={printer.model ?? ""} />
+            </div>
+            <div>
+              <Label>Price (PHP)</Label>
+              <Input
+                name="price"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={printer.price ?? ""}
+              />
+              {printer.price != null && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Current: {formatCurrency(printer.price)}
+                </p>
+              )}
             </div>
             <div>
               <Label>Status</Label>
