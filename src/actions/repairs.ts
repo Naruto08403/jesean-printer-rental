@@ -218,8 +218,8 @@ export async function createRepair(formData: FormData) {
   const device = await resolveRepairDevice(formData);
   const fields = parseRepairForm(formData);
 
-  let isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
-  let totalAmount = isChargeWaived ? 0 : fields.totalAmount;
+  const isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
+  const totalAmount = isChargeWaived ? 0 : fields.totalAmount;
 
   const repair = await prisma.repair.create({
     data: {
@@ -269,8 +269,8 @@ export async function updateRepair(id: string, formData: FormData) {
   const device = await resolveRepairDevice(formData);
   const fields = parseRepairForm(formData);
 
-  let isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
-  let totalAmount = isChargeWaived ? 0 : fields.totalAmount;
+  const isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
+  const totalAmount = isChargeWaived ? 0 : fields.totalAmount;
 
   const repair = await prisma.repair.update({
     where: { id },

@@ -9,12 +9,10 @@ import { cn } from "@/lib/utils";
 export function SearchableDataTable({
   children,
   placeholder = "Search...",
-  noMatchMessage = "No results match your search.",
   className,
 }: {
   children: React.ReactNode;
   placeholder?: string;
-  noMatchMessage?: string;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);

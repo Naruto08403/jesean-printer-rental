@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { clientAnnualBillingRow, getPortalClientData, printerLabel } from "@/lib/portal-data";
+import { clientAnnualBillingRow, getPortalClientData } from "@/lib/portal-data";
 import { redirect } from "next/navigation";
 import { defaultRentalAnnualYear, getClientPaymentSuggestion } from "@/lib/rental-annual";
 import { GenerateBillingModal } from "@/components/forms/generate-billing-modal";
