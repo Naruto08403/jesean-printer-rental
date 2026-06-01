@@ -63,6 +63,10 @@ Set these environment variables in the Vercel project:
 
 The build runs `prisma db push` to sync the schema to Postgres.
 
+### Billing Excel export
+
+Billing fills `templates/billing.xlsx` (your logo and layout) and downloads `.xlsx` — commit that file to git (`Data/` is gitignored).
+
 ## Scripts
 
 | Command | Description |

@@ -1,23 +1,20 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireClient } from "@/lib/auth";
 import { billingDownloadFilename } from "@/lib/rental-billing-shared";
 import { loadClientBillingRentals } from "@/lib/rental-billing-api";
 import { billingContentType, generateClientBilling } from "@/lib/rental-billing-generate";
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    const session = await requireClient();
+    const clientId = session.user.clientId!;
 
     const body = await request.json();
-    const clientId = String(body.clientId ?? "");
     const year = Number(body.year);
     const startMonth = Number(body.startMonth);
     const endMonth = Number(body.endMonth);
     const issueDateRaw = String(body.issueDate ?? "");
 
-    if (!clientId) {
-      return NextResponse.json({ error: "Client is required" }, { status: 400 });
-    }
     if (!Number.isFinite(year) || year < 2000) {
       return NextResponse.json({ error: "Invalid year" }, { status: 400 });
     }
@@ -35,7 +32,7 @@ export async function POST(request: Request) {
 
     const loaded = await loadClientBillingRentals(clientId);
     if (!loaded) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
     const buffer = await generateClientBilling({
@@ -63,6 +60,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate billing";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message === "Unauthorized" ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

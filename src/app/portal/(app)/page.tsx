@@ -11,6 +11,8 @@ import {
   Printer,
   Wrench,
 } from "lucide-react";
+import { getClientPaymentSuggestion } from "@/lib/rental-annual";
+import { GenerateBillingModal } from "@/components/forms/generate-billing-modal";
 import { PortalStatCard } from "@/components/portal/portal-stat-card";
 import { PortalRentalCard } from "@/components/portal/portal-rental-card";
 import { formatCurrency } from "@/lib/utils";
@@ -37,6 +39,14 @@ export default async function PortalDashboardPage() {
     .sort((a, b) => b.paidAt.getTime() - a.paidAt.getTime())
     .slice(0, 3);
 
+  const billingSuggestion = getClientPaymentSuggestion(activeRentals);
+  const billingClient = {
+    id: data.client.id,
+    label: data.client.name,
+    monthlyPayable: billingSuggestion?.monthlyPayable ?? 0,
+    unitCount: billingSuggestion?.unitCount ?? 0,
+  };
+
   return (
     <div className="space-y-8">
       {/* Hero */}
@@ -58,6 +68,18 @@ export default async function PortalDashboardPage() {
             <div className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-500/20 px-4 py-2 text-sm">
               <CheckCircle2 className="h-4 w-4" />
               All caught up — no overdue balances
+            </div>
+          )}
+          {billingClient.unitCount > 0 && (
+            <div className="relative z-10 mt-4">
+              <GenerateBillingModal
+                clients={[billingClient]}
+                defaultClientId={billingClient.id}
+                triggerLabel="Download billing"
+                triggerVariant="secondary"
+                apiUrl="/api/portal/billing/generate"
+                portalMode
+              />
             </div>
           )}
         </div>

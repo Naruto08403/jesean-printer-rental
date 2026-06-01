@@ -13,7 +13,7 @@ import {
   MONTH_LABELS,
   rentalAnnualYearOptions,
 } from "@/lib/rental-annual";
-import { formatMonthsCoveredLabel } from "@/lib/rental-billing-excel";
+import { formatMonthsCoveredLabel } from "@/lib/rental-billing-shared";
 
 type ClientOption = {
   id: string;
@@ -35,11 +35,15 @@ export function GenerateBillingModal({
   defaultClientId,
   triggerLabel = "Generate billing",
   triggerVariant = "secondary",
+  apiUrl = "/api/billing/generate",
+  portalMode = false,
 }: {
   clients: ClientOption[];
   defaultClientId?: string;
   triggerLabel?: string;
   triggerVariant?: "secondary" | "ghost";
+  apiUrl?: string;
+  portalMode?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState(defaultClientId ?? "");
@@ -67,18 +71,18 @@ export function GenerateBillingModal({
     e.preventDefault();
     setError(null);
 
-    if (!clientId) {
+    if (!portalMode && !clientId) {
       setError("Select a client.");
       return;
     }
 
     startTransition(async () => {
       try {
-        const res = await fetch("/api/billing/generate", {
+        const res = await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            clientId,
+            ...(portalMode ? {} : { clientId }),
             year: Number(year),
             startMonth: Number(startMonth),
             endMonth: Number(endMonth),
@@ -110,7 +114,7 @@ export function GenerateBillingModal({
   }
 
   const previewMonths =
-    clientId && startMonth && endMonth
+    startMonth && endMonth
       ? formatMonthsCoveredLabel(Number(year), Number(startMonth), Number(endMonth))
       : null;
 
@@ -139,28 +143,31 @@ export function GenerateBillingModal({
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-sm text-slate-500">
-            Downloads an Excel file with <strong>two copies</strong> of the billing statement on one
-            page (from <code className="rounded bg-slate-100 px-1">templates/billing.xlsx</code>
-            ), for all active units under the client.
+            Downloads an Excel file from your template (
+            <code className="rounded bg-slate-100 px-1">templates/billing.xlsx</code>) with two
+            copies on one page. Bills all active units
+            {portalMode ? " on your account" : " under the client"}.
           </p>
 
-          <div>
-            <Label htmlFor="billing-client">Client</Label>
-            <Select
-              id="billing-client"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="mt-1"
-              disabled={Boolean(defaultClientId)}
-            >
-              <option value="">Select client…</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {!portalMode && (
+            <div>
+              <Label htmlFor="billing-client">Client</Label>
+              <Select
+                id="billing-client"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="mt-1"
+                disabled={Boolean(defaultClientId)}
+              >
+                <option value="">Select client…</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
 
           {selected && (
             <div className="rounded-lg border border-brand-100 bg-brand-50/50 px-3 py-2 text-sm text-brand-900">
@@ -254,7 +261,7 @@ export function GenerateBillingModal({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || !clientId}>
+            <Button type="submit" disabled={pending || (!portalMode && !clientId)}>
               {pending ? "Generating…" : "Download Excel"}
             </Button>
           </div>

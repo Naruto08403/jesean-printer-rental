@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
-import { getPortalClientData } from "@/lib/portal-data";
+import { getPortalClientData, printerLabel } from "@/lib/portal-data";
 import { redirect } from "next/navigation";
+import { getClientPaymentSuggestion } from "@/lib/rental-annual";
+import { GenerateBillingModal } from "@/components/forms/generate-billing-modal";
 import { PortalRentalCard } from "@/components/portal/portal-rental-card";
 
 export default async function PortalRentalsPage() {
@@ -18,13 +20,32 @@ export default async function PortalRentalsPage() {
     (r) => r.status === "COMPLETED" || r.status === "CANCELLED"
   );
 
+  const billingSuggestion = getClientPaymentSuggestion(active);
+  const billingClient = {
+    id: data.client.id,
+    label: data.client.name,
+    monthlyPayable: billingSuggestion?.monthlyPayable ?? 0,
+    unitCount: billingSuggestion?.unitCount ?? 0,
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Printer rentals</h1>
-        <p className="mt-1 text-slate-500">
-          {data.rentals.length} rental{data.rentals.length === 1 ? "" : "s"} on your account
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Printer rentals</h1>
+          <p className="mt-1 text-slate-500">
+            {data.rentals.length} rental{data.rentals.length === 1 ? "" : "s"} on your account
+          </p>
+        </div>
+        {billingClient.unitCount > 0 && (
+          <GenerateBillingModal
+            clients={[billingClient]}
+            defaultClientId={billingClient.id}
+            triggerLabel="Download billing"
+            apiUrl="/api/portal/billing/generate"
+            portalMode
+          />
+        )}
       </div>
 
       {active.length > 0 && (
