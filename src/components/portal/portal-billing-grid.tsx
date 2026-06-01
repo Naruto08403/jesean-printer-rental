@@ -11,7 +11,7 @@ const cellStyles: Record<MonthCell["state"], string> = {
   running: "bg-brand-50 text-brand-700 ring-1 ring-brand-100",
   expected: "bg-red-50 text-red-700 ring-1 ring-red-100",
   paid: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
-  partial: "bg-red-50 text-red-700 ring-1 ring-red-100",
+  partial: "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
   paused: "bg-amber-50/60 text-amber-600 ring-1 ring-amber-100",
   stopped: "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
 };
@@ -90,6 +90,9 @@ export function PortalBillingGrid({
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-2.5 rounded bg-emerald-100 ring-1 ring-emerald-200" /> Paid
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded bg-orange-100 ring-1 ring-orange-200" /> Partial
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-2.5 rounded bg-red-100 ring-1 ring-red-200" /> Overdue

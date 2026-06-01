@@ -62,6 +62,13 @@ enum ClientStatus {
   STOPPED
 }
 
+enum RepairPrinterSource {
+  INVENTORY
+  RENTAL
+  WALK_IN
+  HISTORY
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String?  @unique
@@ -160,19 +167,35 @@ model RentalAuditLog {
 }
 
 model Repair {
-  id          String        @id @default(cuid())
-  clientId    String
-  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  printerId   String?
-  printer     Printer?      @relation(fields: [printerId], references: [id], onDelete: SetNull)
-  status      ServiceStatus @default(PENDING)
-  title       String
-  description String?
-  totalAmount Float
-  completedAt DateTime?
-  payments    Payment[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                 String              @id @default(cuid())
+  clientId           String?
+  client             Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  customerName       String?
+  printerId          String?
+  printer            Printer?            @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  source             RepairPrinterSource @default(WALK_IN)
+  linkedFromRepairId String?
+  linkedFromRepair   Repair?             @relation("RepairDeviceHistory", fields: [linkedFromRepairId], references: [id], onDelete: SetNull)
+  followUpRepairs    Repair[]            @relation("RepairDeviceHistory")
+  brand              String?
+  model              String?
+  serialNumber       String?
+  problem            String              @default("")
+  diagnosis          String?
+  status             ServiceStatus       @default(PENDING)
+  totalAmount        Float               @default(0)
+  isChargeWaived     Boolean             @default(false)
+  receivedAt         DateTime            @default(now())
+  completedAt        DateTime?
+  title              String?
+  description        String?
+  payments           Payment[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([serialNumber])
+  @@index([printerId])
+  @@index([clientId])
 }
 
 model Sale {

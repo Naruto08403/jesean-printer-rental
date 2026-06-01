@@ -66,7 +66,8 @@ export default async function DashboardPage() {
             {recentPayments.map((p) => {
               const label =
                 p.rental?.client.name ??
-                p.repair?.client.name ??
+                p.repair?.client?.name ??
+                p.repair?.customerName ??
                 p.sale?.client?.name ??
                 p.cctvInstallation?.client.name ??
                 "—";

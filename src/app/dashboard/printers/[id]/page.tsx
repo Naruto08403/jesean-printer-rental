@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import Link from "next/link";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
+import { formatRepairCustomerLabel, repairDisplayTitle } from "@/lib/repair-device";
 import { Badge } from "@/components/ui/badge";
 
 export default async function PrinterDetailPage({
@@ -124,9 +125,12 @@ export default async function PrinterDetailPage({
             {printer.repairs.map((r) => (
               <li key={r.id}>
                 <Link href={`/dashboard/repairs/${r.id}`} className="font-medium text-brand-600">
-                  {r.title}
+                  {repairDisplayTitle(r)}
                 </Link>
-                <span className="text-slate-500"> · {r.client.name}</span>
+                <span className="text-slate-500">
+                  {" "}
+                  · {formatRepairCustomerLabel(r)} · {formatDate(r.receivedAt)}
+                </span>
               </li>
             ))}
           </ul>

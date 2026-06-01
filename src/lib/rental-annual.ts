@@ -89,6 +89,26 @@ function payableForRental(rental: { ratePerPeriod: number; printer?: { price?: n
   return rental.printer?.price ?? rental.ratePerPeriod;
 }
 
+/** Any recorded payment for the month. */
+export function monthHasPayment(paid: number): boolean {
+  return paid > 0.001;
+}
+
+export function isMonthFullyPaid(paid: number, expected: number): boolean {
+  return paid >= expected - 0.01;
+}
+
+/** Paid but below contract expected (e.g. vacation half-pay) — acceptable, no balance due. */
+export function isMonthPartiallyPaid(paid: number, expected: number | null): boolean {
+  return expected != null && monthHasPayment(paid) && !isMonthFullyPaid(paid, expected);
+}
+
+/** Net amount after withholding VAT from gross monthly payable. */
+export function netPayableAfterVat(grossPayable: number, vatPercent: number): number {
+  const pct = Math.min(100, Math.max(0, vatPercent));
+  return Math.round(grossPayable * (1 - pct / 100) * 100) / 100;
+}
+
 export function rentalAnnualYearOptions(now = new Date()): number[] {
   const max = Math.max(RENTAL_ANNUAL_START_YEAR, now.getFullYear() + 1);
   const years: number[] = [];
@@ -161,7 +181,8 @@ function resolveBillingMonthState(
 ): MonthCell["state"] {
   if (!isBillingMonth(rental.paymentSchedule, month)) return "empty";
 
-  if (paid >= payable - 0.01) return "paid";
+  if (isMonthFullyPaid(paid, payable)) return "paid";
+  if (monthHasPayment(paid)) return "partial";
   if (!isMonthlyPaymentDue(rental.startDate, year, month, now)) return "running";
   return "expected";
 }
@@ -217,17 +238,15 @@ export function unpaidBillableMonths(
   rental: RentalBillingLike,
   year: number,
   startMonth: number,
-  endMonth: number,
-  fullPaymentAmount?: number
+  endMonth: number
 ): number[] {
-  const targetAmount = fullPaymentAmount ?? payableForRental(rental);
   const months: number[] = [];
   for (let month = startMonth; month <= endMonth; month++) {
     if (!isMonthInContract(rental, year, month)) continue;
     if (!isBillingMonth(rental.paymentSchedule, month)) continue;
     if (!isMonthlyPaymentDue(rental.startDate, year, month)) continue;
     const paid = paymentsInMonth(rental.payments, year, month);
-    if (paid >= targetAmount - 0.01) continue;
+    if (monthHasPayment(paid)) continue;
     months.push(month);
   }
   return months;
@@ -325,17 +344,17 @@ function mergeMonthCells(cells: MonthCell[]): MonthCell {
     billingPaused.length > 0 &&
     billingPaused.length === inContract.filter((c) => c.expected != null).length;
 
-  if (expected != null && paid >= expected - 0.01) {
+  if (expected != null && isMonthFullyPaid(paid, expected)) {
     return { month, label, paid, expected, state: "paid" };
+  }
+  if (expected != null && monthHasPayment(paid)) {
+    return { month, label, paid, expected, state: "partial" };
   }
   if (inContract.some((c) => c.state === "expected")) {
     return { month, label, paid, expected, state: "expected" };
   }
-  if (paid > 0 && expected != null) {
-    return { month, label, paid, expected, state: "expected" };
-  }
-  if (paid > 0) {
-    return { month, label, paid, expected, state: "paid" };
+  if (inContract.some((c) => c.state === "partial")) {
+    return { month, label, paid, expected, state: "partial" };
   }
   if (allBillingPaused && expected != null) {
     return { month, label, paid, expected, state: "paused" };

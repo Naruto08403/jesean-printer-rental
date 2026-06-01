@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { getPortalClientData } from "@/lib/portal-data";
 import { redirect } from "next/navigation";
 import { PortalServiceCard } from "@/components/portal/portal-service-card";
+import { repairDisplayTitle } from "@/lib/repair-device";
 import { ShoppingBag, Shield, Wrench } from "lucide-react";
 
 export default async function PortalServicesPage() {
@@ -46,13 +47,18 @@ export default async function PortalServicesPage() {
               <PortalServiceCard
                 key={r.id}
                 kind="repair"
-                title={r.title}
-                subtitle={r.description ?? undefined}
+                title={repairDisplayTitle(r)}
+                subtitle={r.diagnosis ?? r.description ?? undefined}
                 status={r.status}
-                totalAmount={r.totalAmount}
+                totalAmount={r.isChargeWaived ? 0 : r.totalAmount}
                 payments={r.payments}
-                date={r.createdAt}
-                printer={r.printer}
+                date={r.receivedAt}
+                printer={
+                  r.printer ?? {
+                    brand: r.brand,
+                    model: r.model,
+                  }
+                }
               />
             ))}
           </div>

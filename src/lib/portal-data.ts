@@ -8,6 +8,7 @@ import {
   type RentalAnnualRow,
 } from "@/lib/rental-annual";
 import { summarizePayments } from "@/lib/payments";
+import { repairDisplayTitle } from "@/lib/repair-device";
 import type {
   CctvInstallation,
   Client,
@@ -202,18 +203,21 @@ export function buildPortalNotifications(data: {
     const due = serviceDueNotification(
       "repair_due",
       repair.id,
-      repair.title,
-      repair.totalAmount,
+      repairDisplayTitle(repair),
+      repair.isChargeWaived ? 0 : repair.totalAmount,
       repair.payments,
       "/portal/services#repairs",
-      repair.status !== "COMPLETED" && repair.status !== "CANCELLED"
+      !repair.isChargeWaived &&
+        repair.totalAmount > 0 &&
+        repair.status !== "COMPLETED" &&
+        repair.status !== "CANCELLED"
     );
     if (due) notifications.push(due);
 
     const job = jobUpdateNotification(
       repair.id,
       "repair",
-      repair.title,
+      repairDisplayTitle(repair),
       repair.status,
       "/portal/services#repairs"
     );

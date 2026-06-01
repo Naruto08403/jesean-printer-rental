@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { repairDisplayTitle } from "@/lib/repair-device";
 
 export default async function ClientDetailPage({
   params,
@@ -121,7 +122,7 @@ export default async function ClientDetailPage({
               {client.repairs.map((r) => (
                 <li key={r.id}>
                   <Link href={`/dashboard/repairs/${r.id}`} className="text-brand-600">
-                    {r.title}
+                    {repairDisplayTitle(r)}
                   </Link>
                 </li>
               ))}

@@ -25,7 +25,11 @@ export async function addBulkRentalPayments(formData: FormData) {
   const endMonth = Number(formData.get("endMonth"));
   const method = String(formData.get("method") || "").trim() || null;
   const reference = String(formData.get("reference") || "").trim() || null;
-  const notes = String(formData.get("notes") || "").trim() || null;
+  const notesRaw = String(formData.get("notes") || "").trim();
+  const vatPercent = Number(formData.get("vatPercent") || 0);
+  const vatNote =
+    vatPercent > 0 && vatPercent <= 100 ? `VAT ${vatPercent}% withheld` : null;
+  const notes = [notesRaw, vatNote].filter(Boolean).join(" · ") || null;
   const recordDateRaw = String(formData.get("recordDate") || "").trim();
   const recordDate = recordDateRaw ? new Date(recordDateRaw) : new Date();
 
@@ -90,7 +94,7 @@ export async function addBulkRentalPayments(formData: FormData) {
           })),
         };
         const baseAmount = payableForRental(rental);
-        const unpaid = unpaidBillableMonths(billingRental, year, month, month, baseAmount);
+        const unpaid = unpaidBillableMonths(billingRental, year, month, month);
         if (unpaid.length === 0) return null;
         return { rentalId: rental.id, baseAmount };
       })

@@ -13,6 +13,7 @@ import { formatCurrency } from "@/lib/utils";
 import {
   defaultRentalAnnualYear,
   MONTH_LABELS,
+  netPayableAfterVat,
   rentalAnnualYearOptions,
 } from "@/lib/rental-annual";
 
@@ -41,6 +42,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState("");
   const [amount, setAmount] = useState("");
+  const [vatPercent, setVatPercent] = useState("12");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -49,17 +51,24 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
 
   const selected = clients.find((c) => c.id === clientId);
 
+  const vat = Number(vatPercent) || 0;
+  const grossPayable = selected?.monthlyPayable ?? 0;
+  const vatAmount =
+    grossPayable > 0 && vat > 0 ? Math.round(grossPayable * (vat / 100) * 100) / 100 : 0;
+  const netPayable = grossPayable > 0 ? netPayableAfterVat(grossPayable, vat) : 0;
+
   useEffect(() => {
     if (!selected) {
       setAmount("");
       return;
     }
-    setAmount(formatAmount(selected.monthlyPayable));
-  }, [selected]);
+    setAmount(formatAmount(netPayableAfterVat(selected.monthlyPayable, Number(vatPercent) || 0)));
+  }, [selected, vatPercent]);
 
   function resetForm() {
     setClientId("");
     setAmount("");
+    setVatPercent("12");
     setError(null);
   }
 
@@ -79,9 +88,9 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
         className="max-w-xl"
       >
         <p className="mb-4 text-sm text-slate-600">
-          Amount is filled from the client&apos;s contract monthly payable. Adjust if VAT or
-          other fees apply. Payment date is when the transaction was received — use this if
-          encoding late. Month range controls which billing months are marked paid.
+          Net amount is computed from contract payable minus VAT. Any payment recorded for a month
+          marks that month paid (no partial balance). Payment date is when the transaction was
+          received. Month range controls which billing months receive entries.
         </p>
         <form
           className="grid gap-3 sm:grid-cols-2"
@@ -118,8 +127,21 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
               ))}
             </Select>
           </div>
-          <div className="sm:col-span-2">
-            <Label>Amount per month (PHP) *</Label>
+          <div>
+            <Label>VAT withheld (%)</Label>
+            <Input
+              name="vatPercent"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={vatPercent}
+              onChange={(e) => setVatPercent(e.target.value)}
+              placeholder="12"
+            />
+          </div>
+          <div>
+            <Label>Amount per month — net (PHP) *</Label>
             <Input
               name="amount"
               type="number"
@@ -128,15 +150,23 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
               required
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="Filled from contract payable"
+              placeholder="After VAT"
             />
-            {selected && selected.monthlyPayable > 0 && (
-              <p className="mt-1 text-xs text-slate-500">
-                Contract payable: {formatCurrency(selected.monthlyPayable)}/mo
+          </div>
+          {selected && grossPayable > 0 && (
+            <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <p>
+                Gross payable: <strong>{formatCurrency(grossPayable)}</strong>/mo
                 {selected.unitCount > 1 ? ` · ${selected.unitCount} units` : ""}
               </p>
-            )}
-          </div>
+              {vat > 0 && (
+                <p className="mt-1 text-slate-600">
+                  VAT ({vat}%): −{formatCurrency(vatAmount)} → Net payment:{" "}
+                  <strong>{formatCurrency(netPayable)}</strong>/mo
+                </p>
+              )}
+            </div>
+          )}
           <div>
             <Label>Payment date *</Label>
             <Input

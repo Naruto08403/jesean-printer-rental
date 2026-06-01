@@ -125,6 +125,7 @@ export function GenerateBillingModal({
         variant={triggerVariant}
         onClick={() => {
           if (defaultClientId) setClientId(defaultClientId);
+          else if (portalMode && clients.length === 1) setClientId(clients[0]!.id);
           setOpen(true);
         }}
       >
@@ -141,12 +142,11 @@ export function GenerateBillingModal({
         title="Generate billing statement"
         className="max-w-lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <p className="text-sm text-slate-500">
-            Downloads an Excel file from your template (
-            <code className="rounded bg-slate-100 px-1">templates/billing.xlsx</code>) with two
-            copies on one page. Bills all active units
-            {portalMode ? " on your account" : " under the client"}.
+        <form onSubmit={handleSubmit} className="space-y-4 text-slate-900">
+          <p className="text-sm text-slate-600">
+            {portalMode
+              ? "Download a billing statement for all active units on your account (two copies on one page)."
+              : "Downloads an Excel file from your template with two copies on one page. Bills all active units under the client."}
           </p>
 
           {!portalMode && (

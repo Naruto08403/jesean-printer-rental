@@ -50,6 +50,13 @@ function toRentalLike(r: RentalInput) {
   };
 }
 
+function paidAmountClass(cell: RentalAnnualRow["months"][0]) {
+  if (cell.state === "partial" || (cell.expected != null && cell.paid > 0 && cell.paid < cell.expected - 0.01)) {
+    return "font-medium text-orange-600";
+  }
+  return "font-medium text-emerald-700";
+}
+
 function MonthCellView({
   cell,
   year,
@@ -67,7 +74,9 @@ function MonthCellView({
     return (
       <span className="text-xs text-amber-600" title="Paused">
         {cell.paid > 0 ? (
-          <span className="font-medium text-emerald-700">{formatCurrency(cell.paid)}</span>
+          <span className={paidAmountClass(cell)} title="Payment recorded">
+            {formatCurrency(cell.paid)}
+          </span>
         ) : (
           "pause"
         )}
@@ -78,7 +87,7 @@ function MonthCellView({
     return (
       <span className="text-xs font-medium text-amber-700" title="Client stopped — no billing">
         {cell.paid > 0 ? (
-          <span className="font-medium text-emerald-700">{formatCurrency(cell.paid)}</span>
+          <span className={paidAmountClass(cell)}>{formatCurrency(cell.paid)}</span>
         ) : (
           "stop"
         )}
@@ -89,21 +98,30 @@ function MonthCellView({
     return (
       <span className="text-xs font-medium text-brand-600" title="Active — not due yet">
         {cell.paid > 0 ? (
-          <span className="font-medium text-emerald-700">{formatCurrency(cell.paid)}</span>
+          <span className={paidAmountClass(cell)}>{formatCurrency(cell.paid)}</span>
         ) : (
           "run"
         )}
       </span>
     );
   }
-  if (cell.paid > 0) {
-    const fullyPaid = cell.state === "paid";
+  if (cell.state === "partial" && cell.paid > 0) {
     return (
       <span
-        className={
-          fullyPaid ? "font-medium text-emerald-700" : "font-medium text-red-600"
+        className="font-medium text-orange-600"
+        title={
+          cell.expected != null
+            ? `Partial — expected ${formatCurrency(cell.expected)}`
+            : "Partial payment"
         }
       >
+        {formatCurrency(cell.paid)}
+      </span>
+    );
+  }
+  if (cell.paid > 0) {
+    return (
+      <span className="font-medium text-emerald-700" title="Paid in full">
         {formatCurrency(cell.paid)}
       </span>
     );
@@ -218,6 +236,7 @@ export function RentalsAnnualView({
         </div>
         <p className="text-xs text-slate-500">
           Auto-renew · <span className="text-emerald-700">paid</span> ·{" "}
+          <span className="text-orange-600">partial</span> ·{" "}
           <span className="text-red-600">overdue</span> ·{" "}
           <span className="text-amber-700">stop/pause</span> · future hidden
         </p>

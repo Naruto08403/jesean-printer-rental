@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { getPortalClientData, printerLabel } from "@/lib/portal-data";
+import { repairDisplayTitle } from "@/lib/repair-device";
 import { redirect } from "next/navigation";
 import {
   PortalPaymentTimeline,
@@ -39,7 +40,7 @@ export default async function PortalPaymentsPage() {
         method: p.method,
         reference: p.reference,
         type: "Repair",
-        label: repair.title,
+        label: repairDisplayTitle(repair),
       });
     }
   }

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export function Modal({
   open,
@@ -32,7 +33,7 @@ export function Modal({
 
   if (!open) return null;
 
-  return (
+  const dialog = (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       <button
         type="button"
@@ -62,8 +63,10 @@ export function Modal({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 text-slate-900">{children}</div>
       </div>
     </div>
   );
+
+  return createPortal(dialog, document.body);
 }

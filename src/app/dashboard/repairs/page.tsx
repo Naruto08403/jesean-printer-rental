@@ -11,37 +11,39 @@ import { toSearchText } from "@/lib/search";
 import { AddRepairModal } from "@/components/forms/add-repair-modal";
 import { PaymentStatus } from "@/components/payment-status";
 import { summarizePayments } from "@/lib/payments";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  formatRepairCustomerLabel,
+  formatRepairPrinterLabel,
+  repairDisplayTitle,
+  sourceLabel,
+} from "@/lib/repair-device";
+import { getRepairFormOptions } from "@/actions/repairs";
 
 export default async function RepairsPage() {
-  const [repairs, clients, printers] = await Promise.all([
+  const [repairs, formOptions] = await Promise.all([
     prisma.repair.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { receivedAt: "desc" },
       include: { client: true, printer: true, payments: true },
     }),
-    prisma.client.findMany({ orderBy: { name: "asc" } }),
-    prisma.printer.findMany({ orderBy: { brand: "asc" } }),
+    getRepairFormOptions(),
   ]);
-
-  const clientOptions = clients.map((c) => ({ id: c.id, label: c.name }));
-  const printerOptions = printers.map((p) => ({
-    id: p.id,
-    label: [p.brand, p.model].filter(Boolean).join(" ") || p.serialNumber || "Printer",
-  }));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Repairs" subtitle={`${repairs.length} total`}>
-        <AddRepairModal clients={clientOptions} printers={printerOptions} />
+      <PageHeader title="Repairs" subtitle={`${repairs.length} total · rentals, walk-ins & history`}>
+        <AddRepairModal options={formOptions} />
       </PageHeader>
 
-      <SearchableDataTable placeholder="Search repairs by title, client, printer, status...">
+      <SearchableDataTable placeholder="Search repairs by customer, printer, serial, problem...">
         <DataTableElement>
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
-              <th className="px-4 py-3 font-medium">Title</th>
-              <th className="px-4 py-3 font-medium">Client</th>
+              <th className="px-4 py-3 font-medium">Received</th>
+              <th className="px-4 py-3 font-medium">Customer</th>
               <th className="px-4 py-3 font-medium">Printer</th>
+              <th className="px-4 py-3 font-medium">Problem</th>
+              <th className="px-4 py-3 font-medium">Source</th>
               <th className="px-4 py-3 font-medium">Amount</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Payment</th>
@@ -51,38 +53,52 @@ export default async function RepairsPage() {
           <tbody>
             {repairs.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                   No repairs yet.
                 </td>
               </tr>
             )}
             {repairs.map((r) => {
               const summary = summarizePayments(r.totalAmount, r.payments);
-              const printerLabel = r.printer
-                ? [r.printer.brand, r.printer.model, r.printer.serialNumber]
-                    .filter(Boolean)
-                    .join(" ")
-                : "";
+              const printerLabel = formatRepairPrinterLabel(r);
+              const customerLabel = formatRepairCustomerLabel(r);
 
               return (
                 <tr
                   key={r.id}
                   data-search-row
                   data-search={toSearchText(
-                    r.title,
-                    r.client.name,
+                    repairDisplayTitle(r),
+                    customerLabel,
                     printerLabel,
+                    r.serialNumber,
+                    r.problem,
+                    r.diagnosis,
+                    sourceLabel(r.source),
                     formatCurrency(r.totalAmount),
                     r.status,
-                    formatCurrency(summary.paid),
-                    summary.isFullyPaid ? "paid" : summary.paid > 0 ? "partial" : "unpaid"
+                    formatDate(r.receivedAt)
                   )}
                   className="border-b border-slate-50 hover:bg-slate-50/50"
                 >
-                  <td className="px-4 py-3 font-medium">{r.title}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.client.name}</td>
-                  <td className="px-4 py-3 text-slate-600">{printerLabel || "—"}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatCurrency(r.totalAmount)}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatDate(r.receivedAt)}</td>
+                  <td className="px-4 py-3 text-slate-600">{customerLabel}</td>
+                  <td className="px-4 py-3 text-slate-600">{printerLabel}</td>
+                  <td className="px-4 py-3 font-medium max-w-[200px] truncate" title={repairDisplayTitle(r)}>
+                    {repairDisplayTitle(r)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge color={r.source === "RENTAL" ? "green" : "slate"}>
+                      {sourceLabel(r.source)}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {r.isChargeWaived ? (
+                      <span className="text-emerald-700">No charge</span>
+                    ) : (
+                      formatCurrency(r.totalAmount)
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge
                       color={
@@ -97,7 +113,11 @@ export default async function RepairsPage() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <PaymentStatus summary={summary} />
+                    {r.isChargeWaived ? (
+                      <span className="text-xs text-slate-400">—</span>
+                    ) : (
+                      <PaymentStatus summary={summary} />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
@@ -110,7 +130,7 @@ export default async function RepairsPage() {
                 </tr>
               );
             })}
-            <SearchNoMatchRow colSpan={7} />
+            <SearchNoMatchRow colSpan={9} />
           </tbody>
         </DataTableElement>
       </SearchableDataTable>
