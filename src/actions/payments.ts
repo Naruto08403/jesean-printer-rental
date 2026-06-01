@@ -1,11 +1,14 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { unpaidBillableMonths } from "@/lib/rental-annual";
 import {
   groupRentalPaymentRecords,
+  paymentsShareBulkCluster,
+  type RawRentalPayment,
   type RentalPaymentRecordGroup,
 } from "@/lib/rental-payment-records";
 
@@ -14,6 +17,61 @@ type PaymentTarget =
   | { type: "repair"; id: string }
   | { type: "sale"; id: string }
   | { type: "cctv"; id: string };
+
+function revalidateAfterRentalPaymentChange(rentalIds: string[]) {
+  revalidatePath("/dashboard/rentals");
+  revalidatePath("/dashboard");
+  revalidatePath("/portal");
+  for (const rentalId of rentalIds) {
+    revalidatePath(`/dashboard/rentals/${rentalId}`);
+  }
+}
+
+/** Delete full bulk batch (all units / months from one Add payment). */
+async function expandRentalPaymentDeleteIds(paymentIds: string[]): Promise<string[]> {
+  const seeds = await prisma.payment.findMany({
+    where: { id: { in: paymentIds }, rentalId: { not: null } },
+    include: { rental: { select: { clientId: true } } },
+  });
+  if (seeds.length === 0) return [];
+
+  const batchIds = [...new Set(seeds.map((s) => s.batchId).filter(Boolean))] as string[];
+  if (batchIds.length > 0) {
+    const rows = await prisma.payment.findMany({
+      where: { batchId: { in: batchIds }, rentalId: { not: null } },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
+
+  const clientIds = [...new Set(seeds.map((s) => s.rental!.clientId))];
+  const all = await prisma.payment.findMany({
+    where: { rental: { clientId: { in: clientIds } }, rentalId: { not: null } },
+  });
+
+  const raw: RawRentalPayment[] = all.map((p) => ({
+    id: p.id,
+    amount: p.amount,
+    paidAt: p.paidAt,
+    billingYear: p.billingYear,
+    billingMonth: p.billingMonth,
+    batchId: p.batchId,
+    method: p.method,
+    reference: p.reference,
+    notes: p.notes,
+    createdAt: p.createdAt,
+    rentalId: p.rentalId,
+  }));
+
+  const seedRaw = raw.filter((p) => paymentIds.includes(p.id));
+  const ids = new Set<string>();
+  for (const seed of seedRaw) {
+    for (const p of raw) {
+      if (paymentsShareBulkCluster(seed, p)) ids.add(p.id);
+    }
+  }
+  return [...ids];
+}
 
 export async function addBulkRentalPayments(formData: FormData) {
   await requireAdmin();
@@ -56,10 +114,14 @@ export async function addBulkRentalPayments(formData: FormData) {
     throw new Error("No rentals found for this client");
   }
 
+  const batchId = randomUUID();
   const paymentRows: {
     rentalId: string;
     amount: number;
     paidAt: Date;
+    billingYear: number;
+    billingMonth: number;
+    batchId: string;
     method: string | null;
     reference: string | null;
     notes: string | null;
@@ -91,6 +153,8 @@ export async function addBulkRentalPayments(formData: FormData) {
           payments: rental.payments.map((p) => ({
             amount: p.amount,
             paidAt: p.paidAt,
+            billingYear: p.billingYear,
+            billingMonth: p.billingMonth,
           })),
         };
         const baseAmount = payableForRental(rental);
@@ -115,6 +179,9 @@ export async function addBulkRentalPayments(formData: FormData) {
         rentalId: row.rentalId,
         amount: rowAmount,
         paidAt: new Date(year, month + 1, 0, 12, 0, 0, 0),
+        billingYear: year,
+        billingMonth: month,
+        batchId,
         method,
         reference,
         notes,
@@ -123,7 +190,9 @@ export async function addBulkRentalPayments(formData: FormData) {
   }
 
   if (paymentRows.length === 0) {
-    throw new Error("No unpaid billable months in that range");
+    throw new Error(
+      "No unpaid months in that range. If you deleted a payment, use Payment records → Delete (removes the full batch), then refresh the rentals page before adding again."
+    );
   }
 
   await prisma.$transaction(
@@ -133,6 +202,9 @@ export async function addBulkRentalPayments(formData: FormData) {
           rentalId: row.rentalId,
           amount: row.amount,
           paidAt: row.paidAt,
+          billingYear: row.billingYear,
+          billingMonth: row.billingMonth,
+          batchId: row.batchId,
           method: row.method,
           reference: row.reference,
           notes: row.notes,
@@ -142,12 +214,7 @@ export async function addBulkRentalPayments(formData: FormData) {
     )
   );
 
-  revalidatePath("/dashboard/rentals");
-  revalidatePath("/dashboard");
-  revalidatePath("/portal");
-  for (const rental of rentals) {
-    revalidatePath(`/dashboard/rentals/${rental.id}`);
-  }
+  revalidateAfterRentalPaymentChange(rentals.map((r) => r.id));
 
   return { count: paymentRows.length };
 }
@@ -165,10 +232,16 @@ export async function getRentalPaymentRecords(
     where: {
       rentalId: { not: null },
       rental: { clientId },
-      paidAt: {
-        gte: new Date(year, 0, 1),
-        lte: new Date(year, 11, 31, 23, 59, 59, 999),
-      },
+      OR: [
+        { billingYear: year },
+        {
+          billingYear: null,
+          paidAt: {
+            gte: new Date(year, 0, 1),
+            lte: new Date(year, 11, 31, 23, 59, 59, 999),
+          },
+        },
+      ],
     },
     orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
   });
@@ -222,14 +295,9 @@ export async function updateRentalPaymentGroup(formData: FormData) {
     )
   );
 
-  revalidatePath("/dashboard/rentals");
-  revalidatePath("/dashboard");
-  revalidatePath("/portal");
-  for (const payment of existing) {
-    if (payment.rentalId) {
-      revalidatePath(`/dashboard/rentals/${payment.rentalId}`);
-    }
-  }
+  revalidateAfterRentalPaymentChange(
+    existing.map((p) => p.rentalId).filter((id): id is string => Boolean(id))
+  );
 }
 
 export async function deleteRentalPaymentGroup(formData: FormData) {
@@ -243,25 +311,23 @@ export async function deleteRentalPaymentGroup(formData: FormData) {
 
   if (paymentIds.length === 0) throw new Error("No payments selected");
 
+  const idsToDelete = await expandRentalPaymentDeleteIds(paymentIds);
+  if (idsToDelete.length === 0) throw new Error("Some payment records were not found");
+
   const existing = await prisma.payment.findMany({
-    where: { id: { in: paymentIds }, rentalId: { not: null } },
+    where: { id: { in: idsToDelete }, rentalId: { not: null } },
+    select: { rentalId: true },
   });
-  if (existing.length !== paymentIds.length) {
-    throw new Error("Some payment records were not found");
-  }
 
   await prisma.payment.deleteMany({
-    where: { id: { in: paymentIds } },
+    where: { id: { in: idsToDelete } },
   });
 
-  revalidatePath("/dashboard/rentals");
-  revalidatePath("/dashboard");
-  revalidatePath("/portal");
-  for (const payment of existing) {
-    if (payment.rentalId) {
-      revalidatePath(`/dashboard/rentals/${payment.rentalId}`);
-    }
-  }
+  revalidateAfterRentalPaymentChange(
+    existing.map((p) => p.rentalId).filter((id): id is string => Boolean(id))
+  );
+
+  return { deleted: idsToDelete.length };
 }
 
 export async function addPayment(target: PaymentTarget, formData: FormData) {

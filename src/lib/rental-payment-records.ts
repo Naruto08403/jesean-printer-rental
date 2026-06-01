@@ -4,6 +4,9 @@ export type RawRentalPayment = {
   id: string;
   amount: number;
   paidAt: Date;
+  billingYear: number | null;
+  billingMonth: number | null;
+  batchId: string | null;
   method: string | null;
   reference: string | null;
   notes: string | null;
@@ -30,6 +33,20 @@ const CLUSTER_GAP_MS = 5_000;
 
 function metadataKey(p: RawRentalPayment) {
   return `${p.reference ?? ""}\x00${p.notes ?? ""}\x00${p.method ?? ""}`;
+}
+
+function billingMonthOf(p: RawRentalPayment, year: number): number {
+  if (p.billingYear === year && p.billingMonth != null) return p.billingMonth;
+  return new Date(p.paidAt).getMonth();
+}
+
+/** Same bulk save (reference + notes + time bucket, or shared batchId). */
+export function paymentsShareBulkCluster(a: RawRentalPayment, b: RawRentalPayment): boolean {
+  if (a.batchId && b.batchId) return a.batchId === b.batchId;
+  return (
+    metadataKey(a) === metadataKey(b) &&
+    Math.abs(a.createdAt.getTime() - b.createdAt.getTime()) <= CLUSTER_GAP_MS
+  );
 }
 
 export function formatMonthRangeLabel(months: number[], year: number): string {
@@ -62,16 +79,10 @@ export function groupRentalPaymentRecords(
 
   const clusters: RawRentalPayment[][] = [];
   for (const payment of sorted) {
-    const meta = metadataKey(payment);
     const lastCluster = clusters[clusters.length - 1];
     const lastInCluster = lastCluster?.[lastCluster.length - 1];
 
-    if (
-      lastCluster &&
-      lastInCluster &&
-      metadataKey(lastInCluster) === meta &&
-      payment.createdAt.getTime() - lastInCluster.createdAt.getTime() <= CLUSTER_GAP_MS
-    ) {
+    if (lastCluster && lastInCluster && paymentsShareBulkCluster(payment, lastInCluster)) {
       lastCluster.push(payment);
     } else {
       clusters.push([payment]);
@@ -82,9 +93,9 @@ export function groupRentalPaymentRecords(
     .map((cluster) => {
       const first = cluster[0];
       const paymentIds = cluster.map((p) => p.id);
-      const months = [...new Set(cluster.map((p) => new Date(p.paidAt).getMonth()))].sort(
-        (a, b) => a - b
-      );
+      const months = [
+        ...new Set(cluster.map((p) => billingMonthOf(p, year))),
+      ].sort((a, b) => a - b);
 
       return {
         id: first.id,

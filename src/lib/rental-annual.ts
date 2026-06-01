@@ -75,7 +75,14 @@ type RentalLike = {
     | { brand: string | null; model: string | null; serialNumber: string | null; price?: number | null }
     | null;
   pausePeriods?: { pausedAt: Date; resumedAt: Date | null }[];
-  payments: { amount: number; paidAt: Date }[];
+  payments: RentalPaymentLike[];
+};
+
+export type RentalPaymentLike = {
+  amount: number;
+  paidAt: Date;
+  billingYear?: number | null;
+  billingMonth?: number | null;
 };
 
 export type RentalBillingLike = Pick<
@@ -220,16 +227,25 @@ function isMonthPausedByHistory(rental: RentalLike, year: number, month: number)
   });
 }
 
+export function paymentAppliesToBillingMonth(
+  payment: RentalPaymentLike,
+  year: number,
+  month: number
+): boolean {
+  if (payment.billingYear != null && payment.billingMonth != null) {
+    return payment.billingYear === year && payment.billingMonth === month;
+  }
+  const d = new Date(payment.paidAt);
+  return d.getFullYear() === year && d.getMonth() === month;
+}
+
 export function paymentsInMonth(
-  payments: { amount: number; paidAt: Date }[],
+  payments: RentalPaymentLike[],
   year: number,
   month: number
 ): number {
   return payments
-    .filter((p) => {
-      const d = new Date(p.paidAt);
-      return d.getFullYear() === year && d.getMonth() === month;
-    })
+    .filter((p) => paymentAppliesToBillingMonth(p, year, month))
     .reduce((sum, p) => sum + p.amount, 0);
 }
 

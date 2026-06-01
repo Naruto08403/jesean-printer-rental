@@ -87,6 +87,8 @@ function toRentalLike(rental: RentalWithRelations) {
     payments: rental.payments.map((p) => ({
       amount: p.amount,
       paidAt: p.paidAt,
+      billingYear: p.billingYear,
+      billingMonth: p.billingMonth,
     })),
   };
 }

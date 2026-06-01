@@ -31,7 +31,12 @@ type RentalInput = {
     | { brand: string | null; model: string | null; serialNumber: string | null; price?: number | null }
     | null;
   pausePeriods?: { pausedAt: string; resumedAt: string | null }[];
-  payments: { amount: number; paidAt: string }[];
+  payments: {
+    amount: number;
+    paidAt: string;
+    billingYear?: number | null;
+    billingMonth?: number | null;
+  }[];
 };
 
 function toRentalLike(r: RentalInput) {
@@ -46,6 +51,8 @@ function toRentalLike(r: RentalInput) {
     payments: r.payments.map((p) => ({
       amount: p.amount,
       paidAt: new Date(p.paidAt),
+      billingYear: p.billingYear,
+      billingMonth: p.billingMonth,
     })),
   };
 }
@@ -128,7 +135,15 @@ function MonthCellView({
   }
   if (cell.state === "expected" && cell.expected != null) {
     return (
-      <span className="font-medium text-red-600">{formatCurrency(cell.expected)}</span>
+      <span
+        className="inline-flex flex-col items-center leading-tight text-red-600"
+        title="Amount due — not paid yet"
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
+          Due
+        </span>
+        <span className="font-medium">{formatCurrency(cell.expected)}</span>
+      </span>
     );
   }
   if (cell.expected != null) {
@@ -241,6 +256,12 @@ export function RentalsAnnualView({
           <span className="text-amber-700">stop/pause</span> · future hidden
         </p>
       </div>
+
+      <p className="text-xs text-slate-500">
+        <span className="font-semibold text-red-600">Due</span> = unpaid amount for that month.{" "}
+        <span className="font-medium text-emerald-700">Green</span> = paid in full.{" "}
+        <span className="font-medium text-orange-600">Orange</span> = partial payment.
+      </p>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-[1100px] w-full text-left text-xs sm:text-sm">

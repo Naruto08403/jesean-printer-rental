@@ -229,6 +229,11 @@ model Payment {
   id                 String            @id @default(cuid())
   amount             Float
   paidAt             DateTime          @default(now())
+  /** Billing period (0–11) for rental monthly grid — authoritative vs paidAt timezone. */
+  billingYear        Int?
+  billingMonth       Int?
+  /** All rows from one Add payment submit share a batch id. */
+  batchId            String?
   method             String?
   reference          String?
   notes              String?
@@ -241,4 +246,7 @@ model Payment {
   cctvInstallationId String?
   cctvInstallation   CctvInstallation? @relation(fields: [cctvInstallationId], references: [id], onDelete: Cascade)
   createdAt          DateTime          @default(now())
+
+  @@index([batchId])
+  @@index([billingYear, billingMonth])
 }

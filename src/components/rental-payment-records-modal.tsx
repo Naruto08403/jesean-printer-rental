@@ -85,6 +85,9 @@ function EditPaymentGroupForm({
       </div>
       <div className="sm:col-span-2">
         <p className="text-xs text-slate-500">Months covered: {record.monthRange}</p>
+        <p className="text-xs text-amber-700">
+          Delete removes the entire saved batch (all printer units and months entered together).
+        </p>
       </div>
       {error && (
         <p className="text-sm text-red-600 sm:col-span-2" role="alert">

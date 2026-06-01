@@ -83,6 +83,8 @@ export default async function RentalDetailPage({
     payments: rental.payments.map((p) => ({
       amount: p.amount,
       paidAt: p.paidAt.toISOString(),
+      billingYear: p.billingYear,
+      billingMonth: p.billingMonth,
     })),
     pausePeriods: rental.pausePeriods.map((pp) => ({
       id: pp.id,
