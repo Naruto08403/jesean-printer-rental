@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/utils";
 import {
+  DEFAULT_RENTAL_VAT_PERCENT,
   defaultRentalAnnualYear,
   MONTH_LABELS,
   netPayableAfterVat,
@@ -42,7 +43,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState("");
   const [amount, setAmount] = useState("");
-  const [vatPercent, setVatPercent] = useState("12");
+  const [vatPercent, setVatPercent] = useState(String(DEFAULT_RENTAL_VAT_PERCENT));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -68,7 +69,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
   function resetForm() {
     setClientId("");
     setAmount("");
-    setVatPercent("12");
+    setVatPercent(String(DEFAULT_RENTAL_VAT_PERCENT));
     setError(null);
   }
 
@@ -89,7 +90,8 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
       >
         <p className="mb-4 text-sm text-slate-600">
           Net amount is computed from contract payable minus VAT. Any payment recorded for a month
-          marks that month paid (no partial balance). Payment date is when the transaction was
+          marks that month settled even when net is below gross contract (VAT withheld).
+          Payment date is when the transaction was
           received. Month range controls which billing months receive entries.
         </p>
         <form
@@ -137,7 +139,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
               max="100"
               value={vatPercent}
               onChange={(e) => setVatPercent(e.target.value)}
-              placeholder="12"
+              placeholder={String(DEFAULT_RENTAL_VAT_PERCENT)}
             />
           </div>
           <div>

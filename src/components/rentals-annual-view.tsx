@@ -57,10 +57,7 @@ function toRentalLike(r: RentalInput) {
   };
 }
 
-function paidAmountClass(cell: RentalAnnualRow["months"][0]) {
-  if (cell.state === "partial" || (cell.expected != null && cell.paid > 0 && cell.paid < cell.expected - 0.01)) {
-    return "font-medium text-orange-600";
-  }
+function paidAmountClass() {
   return "font-medium text-emerald-700";
 }
 
@@ -81,7 +78,7 @@ function MonthCellView({
     return (
       <span className="text-xs text-amber-600" title="Paused">
         {cell.paid > 0 ? (
-          <span className={paidAmountClass(cell)} title="Payment recorded">
+          <span className={paidAmountClass()} title="Payment recorded">
             {formatCurrency(cell.paid)}
           </span>
         ) : (
@@ -105,30 +102,16 @@ function MonthCellView({
     return (
       <span className="text-xs font-medium text-brand-600" title="Active — not due yet">
         {cell.paid > 0 ? (
-          <span className={paidAmountClass(cell)}>{formatCurrency(cell.paid)}</span>
+          <span className={paidAmountClass()}>{formatCurrency(cell.paid)}</span>
         ) : (
           "run"
         )}
       </span>
     );
   }
-  if (cell.state === "partial" && cell.paid > 0) {
-    return (
-      <span
-        className="font-medium text-orange-600"
-        title={
-          cell.expected != null
-            ? `Partial — expected ${formatCurrency(cell.expected)}`
-            : "Partial payment"
-        }
-      >
-        {formatCurrency(cell.paid)}
-      </span>
-    );
-  }
   if (cell.paid > 0) {
     return (
-      <span className="font-medium text-emerald-700" title="Paid in full">
+      <span className={paidAmountClass()} title="Payment recorded for this month">
         {formatCurrency(cell.paid)}
       </span>
     );
@@ -251,16 +234,15 @@ export function RentalsAnnualView({
         </div>
         <p className="text-xs text-slate-500">
           Auto-renew · <span className="text-emerald-700">paid</span> ·{" "}
-          <span className="text-orange-600">partial</span> ·{" "}
-          <span className="text-red-600">overdue</span> ·{" "}
+          <span className="text-red-600">due</span> ·{" "}
           <span className="text-amber-700">stop/pause</span> · future hidden
         </p>
       </div>
 
       <p className="text-xs text-slate-500">
-        <span className="font-semibold text-red-600">Due</span> = unpaid amount for that month.{" "}
-        <span className="font-medium text-emerald-700">Green</span> = paid in full.{" "}
-        <span className="font-medium text-orange-600">Orange</span> = partial payment.
+        <span className="font-semibold text-red-600">Due</span> = no payment yet for that month.{" "}
+        <span className="font-medium text-emerald-700">Green</span> = payment recorded (net after VAT
+        is OK).
       </p>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">

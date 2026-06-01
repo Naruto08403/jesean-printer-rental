@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { getPortalClientData, printerLabel } from "@/lib/portal-data";
+import { clientAnnualBillingRow, getPortalClientData, printerLabel } from "@/lib/portal-data";
+import { defaultRentalAnnualYear } from "@/lib/rental-annual";
+import { PortalClientBillingSection } from "@/components/portal/portal-client-billing-section";
 import { redirect } from "next/navigation";
 import {
   AlertCircle,
@@ -40,6 +42,12 @@ export default async function PortalDashboardPage() {
     .slice(0, 3);
 
   const billingSuggestion = getClientPaymentSuggestion(activeRentals);
+  const billingYear = defaultRentalAnnualYear();
+  const billingRow = clientAnnualBillingRow(activeRentals, billingYear);
+  const earliestStart =
+    activeRentals.length > 0
+      ? new Date(Math.min(...activeRentals.map((r) => r.startDate.getTime())))
+      : new Date();
   const billingClient = {
     id: data.client.id,
     label: data.client.name,
@@ -160,6 +168,14 @@ export default async function PortalDashboardPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {billingRow && activeRentals.length > 0 && (
+        <PortalClientBillingSection
+          row={billingRow}
+          year={billingYear}
+          earliestStartDate={earliestStart}
+        />
       )}
 
       {/* Active rentals */}

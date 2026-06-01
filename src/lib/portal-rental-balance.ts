@@ -1,6 +1,8 @@
 import {
   buildRentalAnnualRow,
   defaultRentalAnnualYear,
+  isBillingMonthDue,
+  monthHasPayment,
   type RentalAnnualRow,
 } from "@/lib/rental-annual";
 import type { ClientStatus, PaymentSchedule, RentalStatus } from "@prisma/client";
@@ -11,7 +13,12 @@ export type PortalRentalForBalance = {
   endDate: Date | null;
   ratePerPeriod: number;
   paymentSchedule: PaymentSchedule;
-  payments: { amount: number; paidAt: Date }[];
+  payments: {
+    amount: number;
+    paidAt: Date;
+    billingYear?: number | null;
+    billingMonth?: number | null;
+  }[];
   printer: {
     brand: string | null;
     model: string | null;
@@ -36,8 +43,9 @@ export function balanceFromAnnualRow(
   let overdueBalance = 0;
 
   for (const cell of row.months) {
-    if (cell.state !== "expected") continue;
-    const owed = Math.max(0, (cell.expected ?? 0) - cell.paid);
+    if (!isBillingMonthDue(cell)) continue;
+    if (monthHasPayment(cell.paid)) continue;
+    const owed = cell.expected ?? 0;
     if (owed < 0.01) continue;
     overdueBalance += owed;
     overdueMonths.push(cell.label);
@@ -81,7 +89,12 @@ function toBalanceRentalLike(rental: PortalRentalForBalance) {
     client: rental.client,
     printer: rental.printer,
     pausePeriods: rental.pausePeriods,
-    payments: rental.payments,
+    payments: rental.payments.map((p) => ({
+      amount: p.amount,
+      paidAt: p.paidAt,
+      billingYear: p.billingYear,
+      billingMonth: p.billingMonth,
+    })),
   };
 }
 

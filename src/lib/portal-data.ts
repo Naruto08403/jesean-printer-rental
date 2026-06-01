@@ -4,7 +4,10 @@ import {
   buildClientAnnualRows,
   buildRentalAnnualRow,
   defaultRentalAnnualYear,
+  isBillingMonthDue,
+  monthHasPayment,
   RENTAL_ANNUAL_START_YEAR,
+  type ClientAnnualRow,
   type RentalAnnualRow,
 } from "@/lib/rental-annual";
 import { summarizePayments } from "@/lib/payments";
@@ -101,8 +104,9 @@ function overdueFromAnnualRow(
 ): PortalNotification[] {
   const items: PortalNotification[] = [];
   for (const cell of row.months) {
-    if (cell.state !== "expected") continue;
-    const owed = Math.max(0, (cell.expected ?? 0) - cell.paid);
+    if (!isBillingMonthDue(cell)) continue;
+    if (monthHasPayment(cell.paid)) continue;
+    const owed = cell.expected ?? 0;
     if (owed < 0.01) continue;
     items.push({
       id: `rental-${row.id}-${year}-${cell.month}`,
@@ -362,6 +366,15 @@ export function printerLabel(
 
 export function rentalToAnnualRow(rental: RentalWithRelations, year?: number) {
   return buildRentalAnnualRow(toRentalLike(rental), year ?? defaultRentalAnnualYear());
+}
+
+export function clientAnnualBillingRow(
+  rentals: RentalWithRelations[],
+  year = defaultRentalAnnualYear()
+): ClientAnnualRow | null {
+  if (rentals.length === 0) return null;
+  const rows = buildClientAnnualRows(rentals.map(toRentalLike), year);
+  return rows.find((r) => r.clientId === rentals[0].client.id) ?? rows[0] ?? null;
 }
 
 export { toRentalLike };

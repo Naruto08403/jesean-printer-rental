@@ -2,6 +2,9 @@ import type { ClientStatus, PaymentSchedule, PrinterStatus, RentalStatus } from 
 
 export const RENTAL_ANNUAL_START_YEAR = 2026;
 
+/** Default VAT withheld on rental payments (net = gross − VAT). */
+export const DEFAULT_RENTAL_VAT_PERCENT = 5;
+
 const MONTH_LABELS = [
   "Jan",
   "Feb",
@@ -105,7 +108,22 @@ export function isMonthFullyPaid(paid: number, expected: number): boolean {
   return paid >= expected - 0.01;
 }
 
-/** Paid but below contract expected (e.g. vacation half-pay) — acceptable, no balance due. */
+/** Any payment recorded for the month — no further balance due (net after VAT is normal). */
+export function isMonthSettled(paid: number): boolean {
+  return monthHasPayment(paid);
+}
+
+/** Portal / UI: month still owes when billable and no payment recorded yet. */
+export function isBillingMonthDue(cell: Pick<MonthCell, "state" | "paid">): boolean {
+  return cell.state === "expected" && !isMonthSettled(cell.paid);
+}
+
+/** Portal / UI: month has a recorded payment (including net below gross contract). */
+export function isBillingMonthSettled(cell: Pick<MonthCell, "state" | "paid">): boolean {
+  return isMonthSettled(cell.paid) || cell.state === "paid" || cell.state === "partial";
+}
+
+/** @deprecated Use isMonthSettled — kept for callers comparing to gross expected. */
 export function isMonthPartiallyPaid(paid: number, expected: number | null): boolean {
   return expected != null && monthHasPayment(paid) && !isMonthFullyPaid(paid, expected);
 }
@@ -188,8 +206,7 @@ function resolveBillingMonthState(
 ): MonthCell["state"] {
   if (!isBillingMonth(rental.paymentSchedule, month)) return "empty";
 
-  if (isMonthFullyPaid(paid, payable)) return "paid";
-  if (monthHasPayment(paid)) return "partial";
+  if (monthHasPayment(paid)) return "paid";
   if (!isMonthlyPaymentDue(rental.startDate, year, month, now)) return "running";
   return "expected";
 }
@@ -360,17 +377,14 @@ function mergeMonthCells(cells: MonthCell[]): MonthCell {
     billingPaused.length > 0 &&
     billingPaused.length === inContract.filter((c) => c.expected != null).length;
 
-  if (expected != null && isMonthFullyPaid(paid, expected)) {
-    return { month, label, paid, expected, state: "paid" };
-  }
   if (expected != null && monthHasPayment(paid)) {
-    return { month, label, paid, expected, state: "partial" };
+    return { month, label, paid, expected, state: "paid" };
   }
   if (inContract.some((c) => c.state === "expected")) {
     return { month, label, paid, expected, state: "expected" };
   }
-  if (inContract.some((c) => c.state === "partial")) {
-    return { month, label, paid, expected, state: "partial" };
+  if (inContract.some((c) => c.state === "paid" || c.state === "partial")) {
+    return { month, label, paid, expected, state: "paid" };
   }
   if (allBillingPaused && expected != null) {
     return { month, label, paid, expected, state: "paused" };

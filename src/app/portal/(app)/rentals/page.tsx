@@ -1,14 +1,22 @@
 import { auth } from "@/lib/auth";
-import { getPortalClientData, printerLabel } from "@/lib/portal-data";
+import { clientAnnualBillingRow, getPortalClientData, printerLabel } from "@/lib/portal-data";
 import { redirect } from "next/navigation";
-import { getClientPaymentSuggestion } from "@/lib/rental-annual";
+import { defaultRentalAnnualYear, getClientPaymentSuggestion } from "@/lib/rental-annual";
 import { GenerateBillingModal } from "@/components/forms/generate-billing-modal";
 import { PortalRentalCard } from "@/components/portal/portal-rental-card";
+import { PortalClientBillingSection } from "@/components/portal/portal-client-billing-section";
 
-export default async function PortalRentalsPage() {
+export default async function PortalRentalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const session = await auth();
   const clientId = session?.user?.clientId;
   if (!clientId) redirect("/portal/login");
+
+  const { year: yearParam } = await searchParams;
+  const year = yearParam ? parseInt(yearParam, 10) : defaultRentalAnnualYear();
 
   const data = await getPortalClientData(clientId);
   if (!data) redirect("/portal/login");
@@ -16,6 +24,11 @@ export default async function PortalRentalsPage() {
   const active = data.rentals.filter(
     (r) => r.status === "ACTIVE" || r.status === "PAUSED"
   );
+  const billingRow = clientAnnualBillingRow(active, year);
+  const earliestStart =
+    active.length > 0
+      ? new Date(Math.min(...active.map((r) => r.startDate.getTime())))
+      : new Date();
   const history = data.rentals.filter(
     (r) => r.status === "COMPLETED" || r.status === "CANCELLED"
   );
@@ -47,6 +60,14 @@ export default async function PortalRentalsPage() {
           />
         )}
       </div>
+
+      {billingRow && active.length > 0 && (
+        <PortalClientBillingSection
+          row={billingRow}
+          year={year}
+          earliestStartDate={earliestStart}
+        />
+      )}
 
       {active.length > 0 && (
         <section>

@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
-import { unpaidBillableMonths } from "@/lib/rental-annual";
+import { DEFAULT_RENTAL_VAT_PERCENT, unpaidBillableMonths } from "@/lib/rental-annual";
 import {
   groupRentalPaymentRecords,
   paymentsShareBulkCluster,
@@ -84,7 +84,11 @@ export async function addBulkRentalPayments(formData: FormData) {
   const method = String(formData.get("method") || "").trim() || null;
   const reference = String(formData.get("reference") || "").trim() || null;
   const notesRaw = String(formData.get("notes") || "").trim();
-  const vatPercent = Number(formData.get("vatPercent") || 0);
+  const vatRaw = formData.get("vatPercent");
+  const vatPercent =
+    vatRaw === null || vatRaw === ""
+      ? DEFAULT_RENTAL_VAT_PERCENT
+      : Number(vatRaw);
   const vatNote =
     vatPercent > 0 && vatPercent <= 100 ? `VAT ${vatPercent}% withheld` : null;
   const notes = [notesRaw, vatNote].filter(Boolean).join(" · ") || null;
