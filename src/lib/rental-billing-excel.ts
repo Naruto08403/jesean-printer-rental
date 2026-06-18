@@ -123,7 +123,8 @@ export async function generateClientBillingExcel(input: GenerateBillingInput): P
   const templateBuffer = Buffer.from(templateBytes);
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(templateBytes as unknown as Buffer);
+  // exceljs Buffer types conflict with @types/node 22+
+  await workbook.xlsx.load(templateBytes as never);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error("Billing template sheet not found");
 
