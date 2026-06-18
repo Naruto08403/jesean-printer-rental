@@ -127,7 +127,17 @@ export function buildRepairDeviceHistory(
   }
 
   return Array.from(byKey.values())
-    .map(({ ids: _ids, ...opt }) => opt)
+    .map(({ id, label, brand, model, serialNumber, customerName, clientName, lastReceivedAt, repairCount }) => ({
+      id,
+      label,
+      brand,
+      model,
+      serialNumber,
+      customerName,
+      clientName,
+      lastReceivedAt,
+      repairCount,
+    }))
     .sort((a, b) => b.lastReceivedAt.getTime() - a.lastReceivedAt.getTime());
 }
 

@@ -14,7 +14,6 @@ export const authConfig = {
 
       const isStaffLogin = pathname === "/login";
       const isPortalLogin = pathname === "/portal/login";
-      const isAuthPage = isStaffLogin || isPortalLogin;
       const isAdminRoute = pathname.startsWith("/dashboard");
       const isPortalApp =
         pathname.startsWith("/portal") && pathname !== "/portal/login";

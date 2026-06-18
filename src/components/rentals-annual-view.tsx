@@ -91,7 +91,7 @@ function MonthCellView({
     return (
       <span className="text-xs font-medium text-amber-700" title="Client stopped — no billing">
         {cell.paid > 0 ? (
-          <span className={paidAmountClass(cell)}>{formatCurrency(cell.paid)}</span>
+          <span className={paidAmountClass()}>{formatCurrency(cell.paid)}</span>
         ) : (
           "stop"
         )}
