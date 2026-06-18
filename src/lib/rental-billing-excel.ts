@@ -119,10 +119,11 @@ async function preserveTemplateDrawings(
 
 export async function generateClientBillingExcel(input: GenerateBillingInput): Promise<Buffer> {
   const statement = prepareBillingStatement(input);
-  const templateBuffer = await fs.readFile(TEMPLATE_PATH);
+  const templateBytes = new Uint8Array(await fs.readFile(TEMPLATE_PATH));
+  const templateBuffer = Buffer.from(templateBytes);
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(templateBuffer);
+  await workbook.xlsx.load(templateBytes);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error("Billing template sheet not found");
 
@@ -135,4 +136,4 @@ export async function generateClientBillingExcel(input: GenerateBillingInput): P
   const generatedBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return preserveTemplateDrawings(templateBuffer, generatedBuffer);
 }
-
+
