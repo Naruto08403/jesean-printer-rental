@@ -17,7 +17,7 @@ import {
   rentalAnnualYearOptions,
   type RentalAnnualRow,
 } from "@/lib/rental-annual";
-import type { ClientStatus, PaymentSchedule, RentalStatus } from "@prisma/client";
+import type { ClientStatus, PaymentSchedule, PrinterStatus, RentalStatus } from "@prisma/client";
 
 type RentalInput = {
   id: string;
@@ -28,7 +28,13 @@ type RentalInput = {
   paymentSchedule: PaymentSchedule;
   client: { id: string; name: string; status: ClientStatus };
   printer:
-    | { brand: string | null; model: string | null; serialNumber: string | null; price?: number | null }
+    | {
+        brand: string | null;
+        model: string | null;
+        serialNumber: string | null;
+        price?: number | null;
+        status?: PrinterStatus;
+      }
     | null;
   pausePeriods?: { pausedAt: string; resumedAt: string | null }[];
   payments: {

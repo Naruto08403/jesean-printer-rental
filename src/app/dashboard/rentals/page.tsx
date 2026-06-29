@@ -88,6 +88,7 @@ export default async function RentalsPage() {
           model: r.printer.model,
           serialNumber: r.printer.serialNumber,
           price: r.printer.price,
+          status: r.printer.status,
         }
       : null,
     payments: r.payments.map((p) => ({

@@ -187,9 +187,21 @@ export async function updateRentalStatus(id: string, status: RentalStatus) {
 
   const now = new Date();
 
+  const endDate =
+    status === "COMPLETED" || status === "CANCELLED"
+      ? before.endDate && before.endDate.getTime() <= now.getTime()
+        ? before.endDate
+        : now
+      : before.status === "COMPLETED" || before.status === "CANCELLED"
+        ? null
+        : undefined;
+
   const rental = await prisma.rental.update({
     where: { id },
-    data: { status },
+    data: {
+      status,
+      ...(endDate !== undefined ? { endDate } : {}),
+    },
     include: { printer: true },
   });
 

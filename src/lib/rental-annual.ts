@@ -75,7 +75,13 @@ type RentalLike = {
   paymentSchedule: PaymentSchedule;
   client: { id: string; name: string; status: ClientStatus };
   printer:
-    | { brand: string | null; model: string | null; serialNumber: string | null; price?: number | null }
+    | {
+        brand: string | null;
+        model: string | null;
+        serialNumber: string | null;
+        price?: number | null;
+        status?: PrinterStatus;
+      }
     | null;
   pausePeriods?: { pausedAt: Date; resumedAt: Date | null }[];
   payments: RentalPaymentLike[];
@@ -211,17 +217,33 @@ function resolveBillingMonthState(
   return "expected";
 }
 
+export function isActiveRentalUnit(rental: { status: RentalStatus }): boolean {
+  return rental.status === "ACTIVE" || rental.status === "PAUSED";
+}
+
+/** Active rental with printer still marked on rent (matches payment/billing modals). */
+export function isBillableRentalUnit(rental: RentalRateLike): boolean {
+  if (!isActiveRentalUnit(rental)) return false;
+  if (rental.printer?.status && rental.printer.status !== "RENTED") return false;
+  return true;
+}
+
+function contributesToClientBilling(rental: RentalLike): boolean {
+  return isBillableRentalUnit(rental);
+}
+
 function isMonthInContract(
   rental: RentalBillingLike,
   year: number,
-  month: number
+  month: number,
+  now = new Date()
 ): boolean {
   const { start, end } = monthRange(year, month);
   const contractEnd = effectiveContractEnd(rental, year);
   if (end < rental.startDate) return false;
   if (start > contractEnd) return false;
   if (rental.status === "COMPLETED" || rental.status === "CANCELLED") {
-    if (rental.endDate && start > rental.endDate) return false;
+    return false;
   }
   return true;
 }
@@ -273,6 +295,7 @@ export function unpaidBillableMonths(
   startMonth: number,
   endMonth: number
 ): number[] {
+  if (rental.status === "COMPLETED" || rental.status === "CANCELLED") return [];
   const months: number[] = [];
   for (let month = startMonth; month <= endMonth; month++) {
     if (!isMonthInContract(rental, year, month)) continue;
@@ -299,7 +322,14 @@ export function buildRentalAnnualRow(
   const months: MonthCell[] = MONTH_LABELS.map((label, month) => {
     const paid = paymentsInMonth(rental.payments, year, month);
 
-    if (!isMonthInContract(rental, year, month)) {
+    if (rental.status === "COMPLETED" || rental.status === "CANCELLED") {
+      if (monthHasPayment(paid)) {
+        return { month, label, paid, expected: null, state: "paid" as const };
+      }
+      return { month, label, paid: 0, expected: null, state: "out" as const };
+    }
+
+    if (!isMonthInContract(rental, year, month, now)) {
       return { month, label, paid: 0, expected: null, state: "out" as const };
     }
 
@@ -357,17 +387,31 @@ function groupStatus(statuses: RentalStatus[]): RentalStatus {
   return statuses[0] ?? "ACTIVE";
 }
 
-function mergeMonthCells(cells: MonthCell[]): MonthCell {
-  const { month, label } = cells[0];
-  const inContract = cells.filter((c) => c.state !== "out");
+function mergeClientMonthCells(allCells: MonthCell[], billingCells: MonthCell[]): MonthCell {
+  const { month, label } = allCells[0];
+  const paid = allCells.reduce((s, c) => s + c.paid, 0);
+  const inContract = billingCells.filter((c) => c.state !== "out");
 
   if (inContract.length === 0) {
+    if (monthHasPayment(paid)) {
+      return { month, label, paid, expected: null, state: "paid" };
+    }
     return { month, label, paid: 0, expected: null, state: "out" };
   }
 
-  const paid = inContract.reduce((s, c) => s + c.paid, 0);
-  const expectedSum = inContract.reduce((s, c) => s + (c.expected ?? 0), 0);
-  const expected = expectedSum > 0 ? expectedSum : null;
+  const dueAmount = inContract
+    .filter((c) => c.state === "expected")
+    .reduce((s, c) => s + (c.expected ?? 0), 0);
+  const billingTotal = inContract
+    .filter(
+      (c) =>
+        c.expected != null &&
+        c.state !== "running" &&
+        c.state !== "out" &&
+        c.state !== "empty"
+    )
+    .reduce((s, c) => s + (c.expected ?? 0), 0);
+  const expected = dueAmount > 0 ? dueAmount : billingTotal > 0 ? billingTotal : null;
 
   const billingPaused = inContract.filter(
     (c) => c.state === "paused" && c.expected != null
@@ -430,9 +474,15 @@ export function buildClientAnnualRows(
 
   for (const [, clientRentals] of byClient) {
     const clientStatus = clientRentals[0].client.status;
+    const billableRentals = clientRentals.filter(isBillableRentalUnit);
+    const billingRentals = clientRentals.filter(contributesToClientBilling);
     const unitRows = clientRentals.map((r) => buildRentalAnnualRow(r, year, now));
+    const billingUnitRows = billingRentals.map((r) => buildRentalAnnualRow(r, year, now));
     let months = MONTH_LABELS.map((label, month) =>
-      mergeMonthCells(unitRows.map((r) => r.months[month]))
+      mergeClientMonthCells(
+        unitRows.map((r) => r.months[month]),
+        billingUnitRows.map((r) => r.months[month])
+      )
     );
     if (clientStatus === "STOPPED") {
       months = applyClientStoppedMonths(months);
@@ -453,8 +503,8 @@ export function buildClientAnnualRows(
     rows.push({
       clientId: clientRentals[0].client.id,
       clientName: clientRentals[0].client.name,
-      unitCount: clientRentals.length,
-      rentalIds: clientRentals.map((r) => r.id),
+      unitCount: billableRentals.length,
+      rentalIds: billableRentals.map((r) => r.id),
       status:
         clientStatus === "STOPPED"
           ? "STOPPED"
@@ -484,11 +534,7 @@ export function getClientPaymentSuggestion(rentals: RentalRateLike[]): {
   suggestedAmount: number;
   unitCount: number;
 } | null {
-  const activeUnits = rentals.filter((r) => {
-    if (r.status !== "ACTIVE") return false;
-    if (r.printer && r.printer.status && r.printer.status !== "RENTED") return false;
-    return true;
-  });
+  const activeUnits = rentals.filter(isBillableRentalUnit);
   if (activeUnits.length === 0) return null;
 
   const monthlyRentals = activeUnits.filter((r) => r.paymentSchedule === "MONTHLY");

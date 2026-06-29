@@ -8,6 +8,7 @@ import {
   SearchNoMatchRow,
 } from "@/components/searchable-data-table";
 import { toSearchText } from "@/lib/search";
+import { formatCurrency } from "@/lib/utils";
 import { AddPrinterModal } from "@/components/forms/add-printer-modal";
 import { ImportPrintersModal } from "@/components/forms/import-printers-modal";
 
@@ -39,6 +40,7 @@ export default async function PrintersPage() {
             <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
               <th className="px-4 py-3 font-medium">Unit</th>
               <th className="px-4 py-3 font-medium">Serial</th>
+              <th className="px-4 py-3 font-medium">Price</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Rentals</th>
               <th className="px-4 py-3 font-medium">Repairs</th>
@@ -48,7 +50,7 @@ export default async function PrintersPage() {
           <tbody>
             {printers.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   No printers yet.
                 </td>
               </tr>
@@ -62,6 +64,7 @@ export default async function PrintersPage() {
                   data-search={toSearchText(
                     unit,
                     p.serialNumber,
+                    p.price,
                     p.status,
                     p._count.rentals,
                     p._count.repairs
@@ -70,6 +73,9 @@ export default async function PrintersPage() {
                 >
                   <td className="px-4 py-3 font-medium">{unit}</td>
                   <td className="px-4 py-3 text-slate-600">{p.serialNumber ?? "—"}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {p.price != null ? formatCurrency(p.price) : "—"}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge color={statusColor[p.status]}>{p.status.replace("_", " ")}</Badge>
                   </td>
@@ -86,7 +92,7 @@ export default async function PrintersPage() {
                 </tr>
               );
             })}
-            <SearchNoMatchRow colSpan={6} />
+            <SearchNoMatchRow colSpan={7} />
           </tbody>
         </DataTableElement>
       </SearchableDataTable>

@@ -14,6 +14,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  DatabaseBackup,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -29,6 +30,7 @@ const links = [
   { href: "/dashboard/repairs", label: "Repairs", icon: Wrench },
   { href: "/dashboard/sales", label: "Sales", icon: ShoppingCart },
   { href: "/dashboard/cctv", label: "CCTV", icon: Cctv },
+  { href: "/dashboard/backup", label: "Backup", icon: DatabaseBackup, section: "system" as const },
 ];
 
 export function DashboardShell({
@@ -123,29 +125,40 @@ export function DashboardShell({
             </button>
           </div>
 
-          {links.map(({ href, label, icon: Icon }) => {
+          {links.map(({ href, label, icon: Icon, section }) => {
             const active =
               pathname === href ||
               (href !== "/dashboard" && pathname.startsWith(href));
             return (
-              <Link
-                key={href}
-                href={href}
-                title={collapsed && mounted ? label : undefined}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex items-center rounded-lg py-2.5 text-sm font-medium transition",
-                  collapsed && mounted
-                    ? "justify-center px-2"
-                    : "gap-3 px-3",
-                  active
-                    ? "bg-white/15 text-white"
-                    : "text-brand-100 hover:bg-white/10 hover:text-white"
+              <span key={href} className="contents">
+                {section === "system" && (
+                  <>
+                    <div className="my-2 border-t border-white/10" />
+                    {(!collapsed || !mounted) && (
+                      <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-brand-300">
+                        System
+                      </p>
+                    )}
+                  </>
                 )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {(!collapsed || !mounted) && <span>{label}</span>}
-              </Link>
+                <Link
+                  href={href}
+                  title={collapsed && mounted ? label : undefined}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "flex items-center rounded-lg py-2.5 text-sm font-medium transition",
+                    collapsed && mounted
+                      ? "justify-center px-2"
+                      : "gap-3 px-3",
+                    active
+                      ? "bg-white/15 text-white"
+                      : "text-brand-100 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {(!collapsed || !mounted) && <span>{label}</span>}
+                </Link>
+              </span>
             );
           })}
         </nav>

@@ -81,6 +81,7 @@ function toRentalLike(rental: RentalWithRelations) {
           model: rental.printer.model,
           serialNumber: rental.printer.serialNumber,
           price: rental.printer.price,
+          status: rental.printer.status,
         }
       : null,
     pausePeriods: rental.pausePeriods.map((p) => ({
