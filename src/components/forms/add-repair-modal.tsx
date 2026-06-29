@@ -146,10 +146,10 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
                 fd.set("isChargeWaived", "true");
                 fd.set("totalAmount", "0");
               }
-              await createRepair(fd);
+              const created = await createRepair(fd);
               setOpen(false);
               resetForm();
-              router.refresh();
+              router.push(`/dashboard/repairs/${created.id}`);
             })
           }
         >

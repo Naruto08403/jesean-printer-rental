@@ -1,139 +1,140 @@
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
-import { DataTableElement } from "@/components/data-table";
-import {
-  SearchableDataTable,
-  SearchNoMatchRow,
-} from "@/components/searchable-data-table";
 import { toSearchText } from "@/lib/search";
 import { AddRepairModal } from "@/components/forms/add-repair-modal";
-import { PaymentStatus } from "@/components/payment-status";
 import { summarizePayments } from "@/lib/payments";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import {
   formatRepairCustomerLabel,
   formatRepairPrinterLabel,
   repairDisplayTitle,
-  sourceLabel,
 } from "@/lib/repair-device";
+import { repairClientKey } from "@/lib/repair-client-key";
 import { getRepairFormOptions } from "@/actions/repairs";
+import { getRepairPaymentOptions } from "@/actions/payments";
+import { AddRepairPaymentModal } from "@/components/forms/add-repair-payment-modal";
+import { GenerateRepairBillingModal } from "@/components/forms/generate-repair-billing-modal";
+import { RepairsWorkspace, type RepairListRow } from "@/components/repairs-workspace";
+import type { RepairDetailPayload } from "@/components/forms/repair-view-modal";
+
+function toDateInput(d: Date | null | undefined) {
+  if (!d) return "";
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+}
 
 export default async function RepairsPage() {
-  const [repairs, formOptions] = await Promise.all([
+  const [repairs, formOptions, paymentOptions] = await Promise.all([
     prisma.repair.findMany({
       orderBy: { receivedAt: "desc" },
       include: { client: true, printer: true, payments: true },
     }),
     getRepairFormOptions(),
+    getRepairPaymentOptions(),
   ]);
+
+  const repairDetails: Record<string, RepairDetailPayload> = {};
+
+  const rows: RepairListRow[] = repairs.map((r) => {
+    const paymentSummary = summarizePayments(r.totalAmount, r.payments);
+    const printerLabel = formatRepairPrinterLabel(r);
+    const customerLabel = formatRepairCustomerLabel(r);
+    const serial =
+      r.serialNumber?.trim() || r.printer?.serialNumber?.trim() || null;
+    const clientKey = repairClientKey(r.clientId, customerLabel);
+
+    const isUnpaid =
+      !r.isChargeWaived &&
+      r.totalAmount > 0 &&
+      !paymentSummary.isFullyPaid;
+
+    const defaultRentalId =
+      formOptions.rentalPrinters.find((rp) => rp.printerId === r.printerId)?.rentalId ?? "";
+
+    repairDetails[r.id] = {
+      id: r.id,
+      title: repairDisplayTitle(r),
+      subtitle: `${printerLabel} · ${customerLabel}`,
+      source: r.source,
+      status: r.status,
+      isChargeWaived: r.isChargeWaived,
+      paymentSummary,
+      payments: r.payments.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        paidAt: p.paidAt.toISOString(),
+        method: p.method,
+        reference: p.reference,
+      })),
+      edit: {
+        id: r.id,
+        source: r.source,
+        clientId: r.clientId,
+        customerName: r.customerName,
+        printerId: r.printerId,
+        linkedFromRepairId: r.linkedFromRepairId,
+        brand: r.brand,
+        model: r.model,
+        serialNumber: r.serialNumber,
+        problem: r.problem,
+        diagnosis: r.diagnosis,
+        status: r.status,
+        totalAmount: r.totalAmount,
+        isChargeWaived: r.isChargeWaived,
+        receivedAt: toDateInput(r.receivedAt),
+        completedAt: toDateInput(r.completedAt),
+        notes: r.description ?? "",
+        defaultRentalId,
+      },
+    };
+
+    return {
+      id: r.id,
+      clientKey,
+      receivedAt: r.receivedAt.toISOString(),
+      customerLabel,
+      printerLabel,
+      serialNumber: serial,
+      amountLabel: r.isChargeWaived
+        ? "No charge"
+        : formatCurrency(r.totalAmount),
+      isChargeWaived: r.isChargeWaived,
+      paymentSummary,
+      isUnpaid,
+      searchText: toSearchText(
+        customerLabel,
+        printerLabel,
+        serial,
+        r.serialNumber,
+        r.printer?.serialNumber,
+        r.brand,
+        r.model,
+        r.printer?.brand,
+        r.printer?.model,
+        repairDisplayTitle(r),
+        r.diagnosis,
+        formatCurrency(r.totalAmount),
+        formatCurrency(paymentSummary.balance)
+      ),
+    };
+  });
 
   return (
     <div className="space-y-6">
       <PageHeader title="Repairs" subtitle={`${repairs.length} total · rentals, walk-ins & history`}>
-        <AddRepairModal options={formOptions} />
+        <div className="flex flex-wrap items-center gap-2">
+          <GenerateRepairBillingModal repairs={paymentOptions} />
+          <AddRepairPaymentModal repairs={paymentOptions} />
+          <AddRepairModal options={formOptions} />
+        </div>
       </PageHeader>
 
-      <SearchableDataTable placeholder="Search repairs by customer, printer, serial, problem...">
-        <DataTableElement>
-          <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
-              <th className="px-4 py-3 font-medium">Received</th>
-              <th className="px-4 py-3 font-medium">Customer</th>
-              <th className="px-4 py-3 font-medium">Printer</th>
-              <th className="px-4 py-3 font-medium">Problem</th>
-              <th className="px-4 py-3 font-medium">Source</th>
-              <th className="px-4 py-3 font-medium">Amount</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Payment</th>
-              <th className="px-4 py-3 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {repairs.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
-                  No repairs yet.
-                </td>
-              </tr>
-            )}
-            {repairs.map((r) => {
-              const summary = summarizePayments(r.totalAmount, r.payments);
-              const printerLabel = formatRepairPrinterLabel(r);
-              const customerLabel = formatRepairCustomerLabel(r);
-
-              return (
-                <tr
-                  key={r.id}
-                  data-search-row
-                  data-search={toSearchText(
-                    repairDisplayTitle(r),
-                    customerLabel,
-                    printerLabel,
-                    r.serialNumber,
-                    r.problem,
-                    r.diagnosis,
-                    sourceLabel(r.source),
-                    formatCurrency(r.totalAmount),
-                    r.status,
-                    formatDate(r.receivedAt)
-                  )}
-                  className="border-b border-slate-50 hover:bg-slate-50/50"
-                >
-                  <td className="px-4 py-3 text-slate-600">{formatDate(r.receivedAt)}</td>
-                  <td className="px-4 py-3 text-slate-600">{customerLabel}</td>
-                  <td className="px-4 py-3 text-slate-600">{printerLabel}</td>
-                  <td className="px-4 py-3 font-medium max-w-[200px] truncate" title={repairDisplayTitle(r)}>
-                    {repairDisplayTitle(r)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge color={r.source === "RENTAL" ? "green" : "slate"}>
-                      {sourceLabel(r.source)}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {r.isChargeWaived ? (
-                      <span className="text-emerald-700">No charge</span>
-                    ) : (
-                      formatCurrency(r.totalAmount)
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      color={
-                        r.status === "COMPLETED"
-                          ? "green"
-                          : r.status === "IN_PROGRESS"
-                            ? "amber"
-                            : "slate"
-                      }
-                    >
-                      {r.status.replace("_", " ")}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    {r.isChargeWaived ? (
-                      <span className="text-xs text-slate-400">—</span>
-                    ) : (
-                      <PaymentStatus summary={summary} />
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/dashboard/repairs/${r.id}`}
-                      className="text-brand-600 hover:underline"
-                    >
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-            <SearchNoMatchRow colSpan={9} />
-          </tbody>
-        </DataTableElement>
-      </SearchableDataTable>
+      <RepairsWorkspace
+        rows={rows}
+        paymentOptions={paymentOptions}
+        formOptions={formOptions}
+        repairDetails={repairDetails}
+      />
     </div>
   );
 }

@@ -266,7 +266,7 @@ export function paymentsInMonth(
     .reduce((sum, p) => sum + p.amount, 0);
 }
 
-/** Months in range that are billable and not yet fully paid for a rental. */
+/** Months in range that are billable and have no payment yet (admin may record early). */
 export function unpaidBillableMonths(
   rental: RentalBillingLike,
   year: number,
@@ -277,7 +277,6 @@ export function unpaidBillableMonths(
   for (let month = startMonth; month <= endMonth; month++) {
     if (!isMonthInContract(rental, year, month)) continue;
     if (!isBillingMonth(rental.paymentSchedule, month)) continue;
-    if (!isMonthlyPaymentDue(rental.startDate, year, month)) continue;
     const paid = paymentsInMonth(rental.payments, year, month);
     if (monthHasPayment(paid)) continue;
     months.push(month);

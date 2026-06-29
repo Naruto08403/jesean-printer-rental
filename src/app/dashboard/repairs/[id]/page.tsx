@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Card, CardTitle } from "@/components/ui/card";
-import { updateRepair } from "@/actions/repairs";
-import { getRepairDeviceTimeline } from "@/actions/repairs";
+import { getRepairDeviceTimeline, getRepairFormOptions } from "@/actions/repairs";
+import { EditRepairJobForm } from "@/components/forms/edit-repair-job-form";
 import { PaymentForm } from "@/components/payment-form";
 import { PaymentStatus } from "@/components/payment-status";
 import { RepairDeviceHistory } from "@/components/repair-device-history";
@@ -15,12 +15,7 @@ import {
 } from "@/lib/repair-device";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { getRepairFormOptions } from "@/actions/repairs";
 
 function toDateInput(d: Date | null | undefined) {
   if (!d) return "";
@@ -49,11 +44,6 @@ export default async function RepairDetailPage({
   if (!repair) notFound();
 
   const summary = summarizePayments(repair.totalAmount, repair.payments);
-
-  async function saveRepair(formData: FormData) {
-    "use server";
-    await updateRepair(id, formData);
-  }
 
   const defaultRentalId =
     options.rentalPrinters.find((r) => r.printerId === repair.printerId)?.rentalId ?? "";
@@ -95,7 +85,10 @@ export default async function RepairDetailPage({
         {!repair.isChargeWaived && repair.totalAmount > 0 && (
           <Card>
             <CardTitle>Record payment</CardTitle>
-            <p className="mt-1 text-sm text-slate-500">Partial payments allowed until fully paid.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Partial payments allowed until fully paid. For multiple jobs, use{" "}
+              <strong>Add payment</strong> on the Repairs list.
+            </p>
             <div className="mt-4">
               <PaymentForm target={{ type: "repair", id }} />
             </div>
@@ -103,96 +96,29 @@ export default async function RepairDetailPage({
         )}
         <Card className={repair.isChargeWaived ? "lg:col-span-2" : ""}>
           <CardTitle>Edit repair job</CardTitle>
-          <form action={saveRepair} className="mt-4 grid gap-3 sm:grid-cols-2">
-            <input type="hidden" name="source" value={repair.source} />
-            <input type="hidden" name="printerId" value={repair.printerId ?? ""} />
-            <input type="hidden" name="rentalId" value={defaultRentalId} />
-            <input type="hidden" name="historyRepairId" value={repair.linkedFromRepairId ?? ""} />
-            <input type="hidden" name="brand" value={repair.brand ?? ""} />
-            <input type="hidden" name="model" value={repair.model ?? ""} />
-            <input type="hidden" name="serialNumber" value={repair.serialNumber ?? ""} />
-
-            <div>
-              <Label>Client</Label>
-              <Select name="clientId" defaultValue={repair.clientId ?? ""} className="mt-1">
-                <option value="">Walk-in</option>
-                {options.clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>Customer name</Label>
-              <Input name="customerName" defaultValue={repair.customerName ?? ""} className="mt-1" />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>Problem</Label>
-              <Input name="problem" defaultValue={repair.problem} required className="mt-1" />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>Diagnosis</Label>
-              <Input name="diagnosis" defaultValue={repair.diagnosis ?? ""} className="mt-1" />
-            </div>
-            <div>
-              <Label>Status</Label>
-              <Select name="status" defaultValue={repair.status} className="mt-1">
-                <option value="PENDING">Pending</option>
-                <option value="IN_PROGRESS">In progress</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
-              </Select>
-            </div>
-            <div>
-              <Label>Price (PHP)</Label>
-              <Input
-                name="totalAmount"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={repair.totalAmount}
-                disabled={repair.isChargeWaived}
-                className="mt-1"
-              />
-              {repair.isChargeWaived && (
-                <input type="hidden" name="isChargeWaived" value="true" />
-              )}
-            </div>
-            <div>
-              <Label>Date received</Label>
-              <Input
-                name="receivedAt"
-                type="date"
-                required
-                defaultValue={toDateInput(repair.receivedAt)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label>Date returned / completed</Label>
-              <Input
-                name="completedAt"
-                type="date"
-                defaultValue={toDateInput(repair.completedAt)}
-                className="mt-1"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>Notes</Label>
-              <Input name="notes" defaultValue={repair.description ?? ""} className="mt-1" />
-            </div>
-            {repair.printerId && (
-              <p className="sm:col-span-2 text-sm">
-                <Link href={`/dashboard/printers/${repair.printerId}`} className="text-brand-600 hover:underline">
-                  View printer in inventory
-                </Link>
-              </p>
-            )}
-            <div className="sm:col-span-2">
-              <Button type="submit">Save changes</Button>
-            </div>
-          </form>
+          <EditRepairJobForm
+            repair={{
+              id: repair.id,
+              source: repair.source,
+              clientId: repair.clientId,
+              customerName: repair.customerName,
+              printerId: repair.printerId,
+              linkedFromRepairId: repair.linkedFromRepairId,
+              brand: repair.brand,
+              model: repair.model,
+              serialNumber: repair.serialNumber,
+              problem: repair.problem,
+              diagnosis: repair.diagnosis,
+              status: repair.status,
+              totalAmount: repair.totalAmount,
+              isChargeWaived: repair.isChargeWaived,
+              receivedAt: toDateInput(repair.receivedAt),
+              completedAt: toDateInput(repair.completedAt),
+              notes: repair.description ?? "",
+              defaultRentalId,
+            }}
+            options={options}
+          />
         </Card>
       </div>
 

@@ -31,6 +31,7 @@ async function printerHasActiveRental(printerId: string): Promise<boolean> {
 }
 
 async function resolveRepairDevice(formData: FormData) {
+  const isEdit = formData.get("isEdit") === "true";
   const source = String(formData.get("source") || "WALK_IN") as RepairPrinterSource;
   const printerId = String(formData.get("printerId") || "").trim() || null;
   const rentalId = String(formData.get("rentalId") || "").trim() || null;
@@ -41,6 +42,8 @@ async function resolveRepairDevice(formData: FormData) {
   let brand = String(formData.get("brand") || "").trim() || null;
   let model = String(formData.get("model") || "").trim() || null;
   let serialNumber = String(formData.get("serialNumber") || "").trim() || null;
+  const hasFormDevice = Boolean(brand || model || serialNumber);
+
   let linkedFromRepairId: string | null = null;
   let resolvedPrinterId: string | null = printerId;
   let isChargeWaived = false;
@@ -57,19 +60,23 @@ async function resolveRepairDevice(formData: FormData) {
     resolvedPrinterId = rental.printerId;
     clientId = rental.clientId;
     customerName = rental.client.name;
-    const snap = snapshotFromPrinter(rental.printer);
-    brand = snap.brand;
-    model = snap.model;
-    serialNumber = snap.serialNumber;
+    if (!isEdit || !hasFormDevice) {
+      const snap = snapshotFromPrinter(rental.printer);
+      brand = snap.brand;
+      model = snap.model;
+      serialNumber = snap.serialNumber;
+    }
     isChargeWaived = true;
   } else if (source === "INVENTORY") {
     if (!printerId) throw new Error("Select a printer from inventory");
     const printer = await prisma.printer.findUnique({ where: { id: printerId } });
     if (!printer) throw new Error("Printer not found");
-    const snap = snapshotFromPrinter(printer);
-    brand = snap.brand;
-    model = snap.model;
-    serialNumber = snap.serialNumber;
+    if (!isEdit || !hasFormDevice) {
+      const snap = snapshotFromPrinter(printer);
+      brand = snap.brand;
+      model = snap.model;
+      serialNumber = snap.serialNumber;
+    }
     isChargeWaived = await printerHasActiveRental(printerId);
   } else if (source === "HISTORY") {
     if (!historyRepairId) throw new Error("Select a device from repair history");
@@ -79,11 +86,13 @@ async function resolveRepairDevice(formData: FormData) {
     });
     if (!prior) throw new Error("Previous repair record not found");
     linkedFromRepairId = prior.id;
-    const snap = snapshotFromRepair(prior);
-    brand = snap.brand;
-    model = snap.model;
-    serialNumber = snap.serialNumber;
-    customerName = customerName || snap.customerName || prior.client?.name || null;
+    if (!isEdit || !hasFormDevice) {
+      const snap = snapshotFromRepair(prior);
+      brand = snap.brand;
+      model = snap.model;
+      serialNumber = snap.serialNumber;
+    }
+    customerName = customerName || prior.customerName || prior.client?.name || null;
     clientId = clientId || prior.clientId;
     resolvedPrinterId = prior.printerId;
     if (resolvedPrinterId) {
@@ -257,6 +266,8 @@ export async function createRepair(formData: FormData) {
   revalidatePath("/dashboard/repairs");
   revalidatePath("/dashboard/printers");
   if (device.printerId) revalidatePath(`/dashboard/printers/${device.printerId}`);
+
+  return { id: repair.id };
 }
 
 export async function updateRepair(id: string, formData: FormData) {

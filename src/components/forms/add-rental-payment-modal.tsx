@@ -49,6 +49,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
   const router = useRouter();
   const years = rentalAnnualYearOptions();
   const defaultYear = defaultRentalAnnualYear();
+  const currentMonth = new Date().getMonth();
 
   const selected = clients.find((c) => c.id === clientId);
 
@@ -89,10 +90,10 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
         className="max-w-xl"
       >
         <p className="mb-4 text-sm text-slate-600">
-          Net amount is computed from contract payable minus VAT. Any payment recorded for a month
-          marks that month settled even when net is below gross contract (VAT withheld).
-          Payment date is when the transaction was
-          received. Month range controls which billing months receive entries.
+          Net amount is computed from contract payable minus VAT. You can pay the current month
+          even before it shows as due on the grid. Any payment for a month marks it settled (net
+          after VAT is OK). Payment date is when the transaction was received. Month range
+          controls which billing months receive entries.
         </p>
         <form
           className="grid gap-3 sm:grid-cols-2"
@@ -190,7 +191,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
           </div>
           <div>
             <Label>From month *</Label>
-            <Select name="startMonth" defaultValue="0" required>
+            <Select name="startMonth" defaultValue={String(currentMonth)} required>
               {MONTH_LABELS.map((label, i) => (
                 <option key={label} value={i}>
                   {label}
@@ -200,7 +201,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
           </div>
           <div>
             <Label>To month *</Label>
-            <Select name="endMonth" defaultValue="11" required>
+            <Select name="endMonth" defaultValue={String(currentMonth)} required>
               {MONTH_LABELS.map((label, i) => (
                 <option key={label} value={i}>
                   {label}

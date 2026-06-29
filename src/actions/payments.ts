@@ -195,7 +195,7 @@ export async function addBulkRentalPayments(formData: FormData) {
 
   if (paymentRows.length === 0) {
     throw new Error(
-      "No unpaid months in that range. If you deleted a payment, use Payment records → Delete (removes the full batch), then refresh the rentals page before adding again."
+      "No unpaid months in that range. Pick months with no payment yet, or delete the existing payment batch for that month first."
     );
   }
 
@@ -334,6 +334,162 @@ export async function deleteRentalPaymentGroup(formData: FormData) {
   return { deleted: idsToDelete.length };
 }
 
+import { summarizePayments } from "@/lib/payments";
+import {
+  formatRepairPrinterLabel,
+  repairDisplayTitle,
+} from "@/lib/repair-device";
+import { repairCustomerDisplayName } from "@/lib/repair-billing";
+
+export type RepairPaymentOption = {
+  id: string;
+  clientId: string | null;
+  clientLabel: string;
+  printerLabel: string;
+  problem: string;
+  receivedAt: string;
+  totalAmount: number;
+  paid: number;
+  balance: number;
+  status: string;
+};
+
+function revalidateAfterRepairPaymentChange(repairIds: string[]) {
+  revalidatePath("/dashboard/repairs");
+  revalidatePath("/dashboard");
+  revalidatePath("/portal");
+  for (const id of repairIds) {
+    revalidatePath(`/dashboard/repairs/${id}`);
+  }
+}
+
+export async function getRepairPaymentOptions(): Promise<RepairPaymentOption[]> {
+  await requireAdmin();
+
+  const repairs = await prisma.repair.findMany({
+    where: {
+      isChargeWaived: false,
+      totalAmount: { gt: 0 },
+      status: { not: "CANCELLED" },
+    },
+    include: { payments: true, client: true, printer: true },
+    orderBy: { receivedAt: "desc" },
+  });
+
+  return repairs.map((r) => {
+    const summary = summarizePayments(r.totalAmount, r.payments);
+    return {
+      id: r.id,
+      clientId: r.clientId,
+      clientLabel: repairCustomerDisplayName(r),
+      printerLabel: formatRepairPrinterLabel(r),
+      problem: repairDisplayTitle(r),
+      receivedAt: r.receivedAt.toISOString(),
+      totalAmount: summary.total,
+      paid: summary.paid,
+      balance: summary.balance,
+      status: r.status,
+    };
+  });
+}
+
+export async function addBulkRepairPayments(formData: FormData) {
+  await requireAdmin();
+
+  const clientId = String(formData.get("clientId") || "").trim() || null;
+  const repairIds = formData
+    .getAll("repairId")
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+  const amount = Number(formData.get("amount"));
+  const method = String(formData.get("method") || "").trim() || null;
+  const reference = String(formData.get("reference") || "").trim() || null;
+  const notes = String(formData.get("notes") || "").trim() || null;
+  const paidAtRaw = String(formData.get("paidAt") || "").trim();
+  const paidAt = paidAtRaw ? new Date(paidAtRaw) : new Date();
+
+  if (repairIds.length === 0) throw new Error("Select at least one repair job");
+  if (!amount || amount <= 0) throw new Error("Invalid amount");
+  if (Number.isNaN(paidAt.getTime())) throw new Error("Invalid payment date");
+
+  const repairs = await prisma.repair.findMany({
+    where: {
+      id: { in: repairIds },
+      isChargeWaived: false,
+      totalAmount: { gt: 0 },
+      status: { not: "CANCELLED" },
+    },
+    include: { payments: true },
+  });
+
+  if (repairs.length !== repairIds.length) {
+    throw new Error("Some repair jobs were not found or are not billable");
+  }
+
+  if (clientId && repairs.some((r) => r.clientId !== clientId)) {
+    throw new Error("All selected jobs must belong to the chosen client");
+  }
+
+  const eligible = repairs
+    .map((r) => {
+      const summary = summarizePayments(r.totalAmount, r.payments);
+      return { repairId: r.id, balance: summary.balance };
+    })
+    .filter((r) => r.balance > 0.001);
+
+  if (eligible.length === 0) {
+    throw new Error("Selected jobs have no balance due");
+  }
+
+  const baseTotal = eligible.reduce((sum, row) => sum + row.balance, 0);
+  if (amount > baseTotal + 0.01) {
+    throw new Error(
+      `Payment amount exceeds total balance due (${baseTotal.toFixed(2)})`
+    );
+  }
+
+  const batchId = randomUUID();
+  const round2 = (value: number) => Math.round(value * 100) / 100;
+  let allocated = 0;
+  const paymentRows: {
+    repairId: string;
+    amount: number;
+  }[] = [];
+
+  for (let i = 0; i < eligible.length; i++) {
+    const row = eligible[i];
+    const rowAmount =
+      i === eligible.length - 1
+        ? round2(amount - allocated)
+        : round2((amount * row.balance) / (baseTotal || eligible.length));
+    allocated += rowAmount;
+    if (rowAmount > 0.001) {
+      paymentRows.push({ repairId: row.repairId, amount: rowAmount });
+    }
+  }
+
+  if (paymentRows.length === 0) throw new Error("Nothing to record");
+
+  await prisma.$transaction(
+    paymentRows.map((row) =>
+      prisma.payment.create({
+        data: {
+          repairId: row.repairId,
+          amount: row.amount,
+          paidAt,
+          batchId,
+          method,
+          reference,
+          notes,
+        },
+      })
+    )
+  );
+
+  revalidateAfterRepairPaymentChange(paymentRows.map((r) => r.repairId));
+  return { count: paymentRows.length };
+}
+
 export async function addPayment(target: PaymentTarget, formData: FormData) {
   await requireAdmin();
   const amount = Number(formData.get("amount"));
@@ -360,13 +516,17 @@ export async function addPayment(target: PaymentTarget, formData: FormData) {
 
   await prisma.payment.create({ data });
 
-  const paths: Record<PaymentTarget["type"], string> = {
-    rental: `/dashboard/rentals/${target.id}`,
-    repair: `/dashboard/repairs/${target.id}`,
-    sale: `/dashboard/sales/${target.id}`,
-    cctv: `/dashboard/cctv/${target.id}`,
-  };
-  revalidatePath(paths[target.type]);
-  revalidatePath("/dashboard");
-  revalidatePath("/portal");
+  if (target.type === "repair") {
+    revalidateAfterRepairPaymentChange([target.id]);
+  } else if (target.type === "rental") {
+    revalidateAfterRentalPaymentChange([target.id]);
+  } else {
+    const paths = {
+      sale: `/dashboard/sales/${target.id}`,
+      cctv: `/dashboard/cctv/${target.id}`,
+    } as const;
+    revalidatePath(paths[target.type]);
+    revalidatePath("/dashboard");
+    revalidatePath("/portal");
+  }
 }
