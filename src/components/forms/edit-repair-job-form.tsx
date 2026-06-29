@@ -4,12 +4,15 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { RepairPrinterSource, ServiceStatus } from "@prisma/client";
-import { updateRepair, type getRepairFormOptions } from "@/actions/repairs";
+import { updateRepair } from "@/actions/repairs";
+import type { getRepairFormOptions } from "@/actions/repairs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { sourceLabel } from "@/lib/repair-device";
+
+type FormOptions = Awaited<ReturnType<typeof getRepairFormOptions>>;
 
 export type RepairEdit = {
   id: string;
