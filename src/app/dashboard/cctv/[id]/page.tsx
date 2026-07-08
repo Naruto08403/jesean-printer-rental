@@ -7,7 +7,7 @@ import { PaymentStatus } from "@/components/payment-status";
 import { summarizePayments } from "@/lib/payments";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormLoadingOverlay } from "@/components/submit-button";
 import { Select } from "@/components/ui/select";
 import type { ServiceStatus } from "@prisma/client";
 
@@ -55,9 +55,10 @@ export default async function CctvDetailPage({
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
             </Select>
-            <Button type="submit" variant="secondary">
+            <SubmitButton variant="secondary" loadingText="Updating…">
               Update
-            </Button>
+            </SubmitButton>
+            <FormLoadingOverlay message="Updating job status…" />
           </form>
         </Card>
       </div>

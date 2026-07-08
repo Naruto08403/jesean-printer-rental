@@ -6,7 +6,7 @@ import { DEFAULT_CLIENT_PORTAL_PASSWORD } from "@/lib/client-portal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormLoadingOverlay } from "@/components/submit-button";
 import Link from "next/link";
 import { repairDisplayTitle } from "@/lib/repair-device";
 
@@ -68,7 +68,8 @@ export default async function ClientDetailPage({
               <Label htmlFor="address">Address</Label>
               <Input id="address" name="address" defaultValue={client.address ?? ""} />
             </div>
-            <Button type="submit">Update</Button>
+            <SubmitButton loadingText="Updating…">Update</SubmitButton>
+            <FormLoadingOverlay message="Updating client…" />
           </form>
         </Card>
 
@@ -92,13 +93,15 @@ export default async function ClientDetailPage({
                     className="mt-1"
                   />
                 </div>
-                <Button type="submit">Update password</Button>
+                <SubmitButton loadingText="Updating…">Update password</SubmitButton>
+                <FormLoadingOverlay message="Updating portal password…" />
               </form>
               <form action={resetPortalPassword}>
                 <input type="hidden" name="useDefault" value="true" />
-                <Button type="submit" variant="secondary">
+                <SubmitButton variant="secondary" loadingText="Resetting…">
                   Reset to default ({DEFAULT_CLIENT_PORTAL_PASSWORD})
-                </Button>
+                </SubmitButton>
+                <FormLoadingOverlay message="Resetting portal password…" />
               </form>
               <p className="text-xs text-slate-500">
                 Use reset when the client or you forgot the portal password.
@@ -132,7 +135,8 @@ export default async function ClientDetailPage({
                   Default is {DEFAULT_CLIENT_PORTAL_PASSWORD} — change if needed.
                 </p>
               </div>
-              <Button type="submit">Create portal access</Button>
+              <SubmitButton loadingText="Creating…">Create portal access</SubmitButton>
+              <FormLoadingOverlay message="Creating portal access…" />
             </form>
           )}
         </Card>

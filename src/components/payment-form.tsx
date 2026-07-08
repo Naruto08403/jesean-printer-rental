@@ -4,6 +4,7 @@ import { addPayment } from "@/actions/payments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { useTransition } from "react";
 
 type Target =
@@ -16,7 +17,9 @@ export function PaymentForm({ target }: { target: Target }) {
   const [pending, startTransition] = useTransition();
 
   return (
-    <form
+    <>
+      {pending && <LoadingOverlay message="Recording payment…" />}
+      <form
       className="grid gap-3 sm:grid-cols-2"
       action={(fd) =>
         startTransition(async () => {
@@ -50,10 +53,11 @@ export function PaymentForm({ target }: { target: Target }) {
         <Input id="notes" name="notes" />
       </div>
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Recording..." : "Record payment"}
+        <Button type="submit" loading={pending}>
+          {pending ? "Recording…" : "Record payment"}
         </Button>
       </div>
     </form>
+    </>
   );
 }

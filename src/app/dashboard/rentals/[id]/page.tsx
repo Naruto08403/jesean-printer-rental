@@ -8,7 +8,7 @@ import { RentalAnnualPayments } from "@/components/rentals-annual-view";
 import { defaultRentalAnnualYear, RENTAL_ANNUAL_START_YEAR } from "@/lib/rental-annual";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormLoadingOverlay } from "@/components/submit-button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -168,9 +168,10 @@ export default async function RentalDetailPage({
               <option value="COMPLETED">Completed (returned)</option>
               <option value="CANCELLED">Cancelled</option>
             </Select>
-            <Button type="submit" variant="secondary">
+            <SubmitButton variant="secondary" loadingText="Updating…">
               Update
-            </Button>
+            </SubmitButton>
+            <FormLoadingOverlay message="Updating rental status…" />
           </form>
           {rental.printer && (
             <p className="mt-4 text-sm">
@@ -206,9 +207,10 @@ export default async function RentalDetailPage({
             className="flex-1"
             required
           />
-          <Button type="submit" variant="secondary">
+          <SubmitButton variant="secondary" loadingText="Adding…">
             Add note
-          </Button>
+          </SubmitButton>
+          <FormLoadingOverlay message="Adding note…" />
         </form>
         <ul className="mt-4 max-h-80 space-y-3 overflow-y-auto text-sm">
           {rental.auditLogs.map((log) => (

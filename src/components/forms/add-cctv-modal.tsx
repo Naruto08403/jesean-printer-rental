@@ -61,7 +61,7 @@ export function AddCctvModal({ clients }: { clients: Option[] }) {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" loading={pending}>
               {pending ? "Creating..." : "Create job"}
             </Button>
           </div>

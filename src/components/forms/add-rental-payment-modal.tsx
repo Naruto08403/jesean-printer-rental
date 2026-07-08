@@ -6,6 +6,7 @@ import { Banknote } from "lucide-react";
 import { addBulkRentalPayments } from "@/actions/payments";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -76,6 +77,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
 
   return (
     <>
+      {pending && <LoadingOverlay message="Saving payments…" />}
       <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         <Banknote className="h-4 w-4" />
         Add payment
@@ -237,7 +239,7 @@ export function AddRentalPaymentModal({ clients }: { clients: ClientOption[] }) 
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" loading={pending}>
               {pending ? "Saving..." : "Save payments"}
             </Button>
           </div>

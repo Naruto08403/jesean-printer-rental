@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { ButtonHTMLAttributes, forwardRef } from "react";
+import { Spinner } from "@/components/ui/spinner";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -14,16 +15,21 @@ const variants: Record<Variant, string> = {
 
 export const Button = forwardRef<
   HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }
->(({ className, variant = "primary", ...props }, ref) => (
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; loading?: boolean }
+>(({ className, variant = "primary", loading = false, disabled, children, ...props }, ref) => (
   <button
     ref={ref}
+    disabled={disabled || loading}
+    aria-busy={loading || undefined}
     className={cn(
       "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed",
       variants[variant],
       className
     )}
     {...props}
-  />
+  >
+    {loading && <Spinner size="sm" className="text-current" />}
+    {children}
+  </button>
 ));
 Button.displayName = "Button";

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardTitle } from "@/components/ui/card";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -25,8 +26,8 @@ export default function LoginPage() {
       password: fd.get("password"),
       redirect: false,
     });
-    setLoading(false);
     if (res?.error) {
+      setLoading(false);
       setError("Invalid email or password");
       return;
     }
@@ -35,7 +36,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-600 to-brand-900 px-4">
+    <>
+      {loading && (
+        <LoadingOverlay
+          message="Signing in…"
+          submessage="Connecting to your admin dashboard."
+        />
+      )}
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-600 to-brand-900 px-4">
       <Card className="w-full max-w-md">
         <CardTitle>Staff sign in</CardTitle>
         <p className="mt-1 text-sm text-slate-500">Admin dashboard — email and password.</p>
@@ -55,8 +63,8 @@ export default function LoginPage() {
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
+          <Button type="submit" className="w-full" loading={loading}>
+            {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-slate-500">
@@ -70,5 +78,6 @@ export default function LoginPage() {
         </Link>
       </Card>
     </div>
+    </>
   );
 }

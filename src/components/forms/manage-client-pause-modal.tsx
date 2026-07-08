@@ -6,6 +6,7 @@ import { CalendarOff } from "lucide-react";
 import { addClientPausePeriod, deleteClientPausePeriods } from "@/actions/rentals";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import {

@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { createRepair } from "@/actions/repairs";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -112,6 +113,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
 
   return (
     <>
+      {pending && <LoadingOverlay message="Saving repair…" />}
       <Button type="button" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" />
         Accept repair
@@ -333,7 +335,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" loading={pending}>
               {pending ? "Saving..." : "Accept repair"}
             </Button>
           </div>

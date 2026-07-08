@@ -4,7 +4,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { updatePrinter, addPrinterNote } from "@/actions/printers";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormLoadingOverlay } from "@/components/submit-button";
 import { Select } from "@/components/ui/select";
 import Link from "next/link";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
@@ -89,7 +89,8 @@ export default async function PrinterDetailPage({
                 <option value="RETIRED">Retired</option>
               </Select>
             </div>
-            <Button type="submit">Save</Button>
+            <SubmitButton loadingText="Saving…">Save</SubmitButton>
+            <FormLoadingOverlay message="Saving printer…" />
           </form>
         </Card>
 
@@ -97,7 +98,8 @@ export default async function PrinterDetailPage({
           <CardTitle>Add audit note</CardTitle>
           <form action={addNote} className="mt-4 flex gap-2">
             <Input name="note" placeholder="Note for audit log..." required className="flex-1" />
-            <Button type="submit">Add</Button>
+            <SubmitButton loadingText="Adding…">Add</SubmitButton>
+            <FormLoadingOverlay message="Adding note…" />
           </form>
         </Card>
       </div>

@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addRentalPausePeriod, deleteRentalPausePeriod } from "@/actions/rentals";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatPausePeriodRange } from "@/lib/rental-pause";
@@ -53,7 +54,9 @@ export function RentalPausePeriodsCard({
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      {pending && <LoadingOverlay message="Updating pause…" />}
+      <div className="space-y-4">
       <p className="text-sm text-slate-500">
         Mark specific months as paused (e.g. vacation break in March–April), even if you are
         recording this later. Remove a pause to bill those months again.
@@ -126,10 +129,11 @@ export function RentalPausePeriodsCard({
             </Select>
           </div>
         </div>
-        <Button type="submit" variant="secondary" disabled={pending}>
+        <Button type="submit" variant="secondary" loading={pending}>
           {pending ? "Saving…" : "Add pause"}
         </Button>
       </form>
     </div>
+    </>
   );
 }

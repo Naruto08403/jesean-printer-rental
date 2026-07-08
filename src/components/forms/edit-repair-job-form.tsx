@@ -7,6 +7,7 @@ import type { RepairPrinterSource, ServiceStatus } from "@prisma/client";
 import { updateRepair } from "@/actions/repairs";
 import type { getRepairFormOptions } from "@/actions/repairs";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -74,7 +75,9 @@ export function EditRepairJobForm({
   }, [printerId, repair.source, options.printers]);
 
   return (
-    <form
+    <>
+      {pending && <LoadingOverlay message="Saving repair…" />}
+      <form
       className={embedded ? "grid gap-3 sm:grid-cols-2" : "mt-4 grid gap-3 sm:grid-cols-2"}
       action={(fd) =>
         startTransition(async () => {
@@ -252,10 +255,11 @@ export function EditRepairJobForm({
         </p>
       )}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
     </form>
+    </>
   );
 }

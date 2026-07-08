@@ -59,7 +59,7 @@ export function AddClientModal() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" loading={pending}>
               {pending ? "Saving..." : "Save client"}
             </Button>
           </div>

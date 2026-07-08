@@ -6,6 +6,7 @@ import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import Link from "next/link";
 import { Home, Lock, User } from "lucide-react";
 
@@ -24,8 +25,8 @@ export default function PortalLoginPage() {
       password: fd.get("password"),
       redirect: false,
     });
-    setLoading(false);
     if (res?.error) {
+      setLoading(false);
       setError("Invalid username or password");
       return;
     }
@@ -34,7 +35,14 @@ export default function PortalLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <>
+      {loading && (
+        <LoadingOverlay
+          message="Signing in…"
+          submessage="Loading your client portal."
+        />
+      )}
+      <div className="flex min-h-screen">
       <div className="hidden flex-1 flex-col justify-between bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 p-12 text-white lg:flex">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
@@ -103,7 +111,7 @@ export default function PortalLoginPage() {
               {error && (
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
               )}
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" loading={loading}>
                 {loading ? "Signing in…" : "Sign in to portal"}
               </Button>
             </form>
@@ -118,5 +126,6 @@ export default function PortalLoginPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
