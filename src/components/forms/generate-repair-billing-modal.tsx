@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { FileSpreadsheet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -116,6 +117,12 @@ export function GenerateRepairBillingModal({
 
   return (
     <>
+      {pending && (
+        <LoadingOverlay
+          message="Generating repair billing…"
+          submessage="Preparing your Excel file."
+        />
+      )}
       <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         <FileSpreadsheet className="h-4 w-4" />
         Repair billing
@@ -224,7 +231,7 @@ export function GenerateRepairBillingModal({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={pending || selectedIds.length === 0}>
+                <Button type="submit" loading={pending} disabled={selectedIds.length === 0}>
                   {pending ? "Generating…" : "Download Excel"}
                 </Button>
               </div>

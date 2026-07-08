@@ -84,6 +84,7 @@ export function ManageClientPauseModal({
 
   return (
     <>
+      {pending && <LoadingOverlay message="Updating pauses…" />}
       <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         <CalendarOff className="h-4 w-4" />
         Pause months
@@ -134,7 +135,7 @@ export function ManageClientPauseModal({
                       type="button"
                       variant="ghost"
                       className="text-red-600 hover:text-red-700"
-                      disabled={pending}
+                      loading={pending}
                       onClick={() => handleDelete(group)}
                     >
                       Remove
@@ -189,7 +190,7 @@ export function ManageClientPauseModal({
               </div>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" disabled={pending || !clientId}>
+            <Button type="submit" loading={pending} disabled={!clientId}>
               {pending ? "Saving…" : "Add pause for all units"}
             </Button>
           </form>

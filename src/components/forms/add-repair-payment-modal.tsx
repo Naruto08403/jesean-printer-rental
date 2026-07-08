@@ -10,6 +10,7 @@ import {
 import { repairClientKey } from "@/lib/repair-client-key";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -136,6 +137,7 @@ export function AddRepairPaymentModal({
 
   return (
     <>
+      {pending && <LoadingOverlay message="Saving payments…" />}
       {showTrigger && (
         <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
           <Banknote className="h-4 w-4" />
@@ -275,7 +277,11 @@ export function AddRepairPaymentModal({
               <Button type="button" variant="secondary" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending || selectedIds.length === 0 || !amount}>
+              <Button
+                type="submit"
+                loading={pending}
+                disabled={selectedIds.length === 0 || !amount}
+              >
                 {pending ? "Saving..." : "Save payments"}
               </Button>
             </div>

@@ -29,9 +29,9 @@ export default async function ClientsPage() {
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Email</th>
+              {/* <th className="px-4 py-3 font-medium">Email</th>
               <th className="px-4 py-3 font-medium">Phone</th>
-              <th className="px-4 py-3 font-medium">Company</th>
+              <th className="px-4 py-3 font-medium">Company</th> */}
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Portal</th>
               <th className="px-4 py-3 font-medium" />
@@ -59,9 +59,9 @@ export default async function ClientsPage() {
                 className="border-b border-slate-50 hover:bg-slate-50/50"
               >
                 <td className="px-4 py-3 font-medium">{c.name}</td>
-                <td className="px-4 py-3 text-slate-600">{c.email ?? "—"}</td>
+                {/* <td className="px-4 py-3 text-slate-600">{c.email ?? "—"}</td>
                 <td className="px-4 py-3 text-slate-600">{c.phone ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-600">{c.company ?? "—"}</td>
+                <td className="px-4 py-3 text-slate-600">{c.company ?? "—"}</td> */}
                 <td className="px-4 py-3">
                   {c.status === "STOPPED" ? (
                     <Badge color="amber">Stop</Badge>

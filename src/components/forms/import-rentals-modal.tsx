@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 import { importRentalsFromCsv } from "@/actions/rentals";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 
 export function ImportRentalsModal() {
   const [open, setOpen] = useState(false);
@@ -15,6 +16,7 @@ export function ImportRentalsModal() {
 
   return (
     <>
+      {pending && <LoadingOverlay message="Importing rentals…" />}
       <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         <Upload className="h-4 w-4" />
         Import CSV

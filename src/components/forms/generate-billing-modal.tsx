@@ -121,6 +121,12 @@ export function GenerateBillingModal({
 
   return (
     <>
+      {pending && (
+        <LoadingOverlay
+          message="Generating billing…"
+          submessage="Preparing your Excel file."
+        />
+      )}
       <Button
         type="button"
         variant={triggerVariant}
@@ -262,7 +268,7 @@ export function GenerateBillingModal({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || (!portalMode && !clientId)}>
+            <Button type="submit" loading={pending} disabled={!portalMode && !clientId}>
               {pending ? "Generating…" : "Download Excel"}
             </Button>
           </div>

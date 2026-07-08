@@ -10,6 +10,7 @@ import {
 } from "@/actions/payments";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -43,7 +44,9 @@ function EditPaymentGroupForm({
   const [pending, startTransition] = useTransition();
 
   return (
-    <form
+    <>
+      {pending && <LoadingOverlay message="Updating payment record…" />}
+      <form
       className="grid gap-3 border-t border-slate-100 bg-slate-50/80 p-4 sm:grid-cols-2"
       action={(fd) =>
         startTransition(async () => {
@@ -98,7 +101,7 @@ function EditPaymentGroupForm({
         <Button
           type="button"
           variant="danger"
-          disabled={pending}
+          loading={pending}
           onClick={() =>
             startTransition(async () => {
               setError(null);
@@ -119,11 +122,12 @@ function EditPaymentGroupForm({
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Saving..." : "Save changes"}
         </Button>
       </div>
     </form>
+    </>
   );
 }
 

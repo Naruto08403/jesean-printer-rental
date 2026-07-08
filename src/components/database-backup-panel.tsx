@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { LoadingOverlay } from "@/components/loading-overlay";
 
 export function DatabaseBackupPanel() {
   const router = useRouter();
@@ -97,6 +98,12 @@ export function DatabaseBackupPanel() {
 
   return (
     <div className="space-y-6">
+      {(exporting || pending) && (
+        <LoadingOverlay
+          message={exporting ? "Preparing backup…" : "Restoring backup…"}
+          submessage="This may take a moment on slower connections."
+        />
+      )}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start gap-3">
           <div className="rounded-lg bg-brand-50 p-2 text-brand-700">
@@ -112,7 +119,8 @@ export function DatabaseBackupPanel() {
               type="button"
               className="mt-4"
               onClick={handleExport}
-              disabled={exporting || pending}
+              loading={exporting}
+              disabled={pending}
             >
               <Download className="h-4 w-4" />
               {exporting ? "Preparing backup..." : "Download backup"}
@@ -174,7 +182,8 @@ export function DatabaseBackupPanel() {
               type="button"
               variant="danger"
               onClick={handleImport}
-              disabled={pending || exporting || !file}
+              loading={pending}
+              disabled={exporting || !file}
             >
               <Upload className="h-4 w-4" />
               {pending ? "Importing..." : "Import backup"}

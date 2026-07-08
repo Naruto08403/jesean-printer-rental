@@ -21,9 +21,53 @@ function todayInput() {
 }
 
 export function AddRepairModal({ options }: { options: FormOptions }) {
+
+  const DIAGNOSIS_OPTIONS = [
+    "Reset Ink Pad",
+    "Replace Purge Gear",
+    "Recover Print Head",
+    "Replace Flex ASSY",
+    "Replace Cartridge Magent",
+    "Replace Cartridge Yellow",
+    "Replace Cartridge Cyan",
+    "Replace Cartridge Black",
+    "Labor",
+    
+  ];
+  const [diagnosis, setDiagnosis] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const currentSearch = diagnosis
+  .split(",")
+  .pop()
+  ?.trim()
+  .toLowerCase() ?? "";
+
+  const filteredDiagnosis = DIAGNOSIS_OPTIONS.filter(item => {
+    if (item === "Labor") return false;
+  
+    if (diagnosis
+        .toLowerCase()
+        .split(",")
+        .map(x => x.trim())
+        .includes(item.toLowerCase()))
+      return false;
+  
+    return item.toLowerCase().includes(currentSearch);
+  });
+  
+  const suggestions =
+    currentSearch === ""
+      ? [...filteredDiagnosis, "Labor"]
+      : [
+          ...filteredDiagnosis,
+          ...( "Labor".toLowerCase().includes(currentSearch)
+              ? ["Labor"]
+              : []),
+        ];
 
   const [source, setSource] = useState<RepairPrinterSource>("WALK_IN");
   const [clientId, setClientId] = useState("");
@@ -96,6 +140,24 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
       setCustomerName(selectedHistory.customerName ?? selectedHistory.clientName ?? "");
     }
   }, [source, selectedHistory]);
+
+  function addDiagnosis(selected: string) {
+    const parts = diagnosis.split(",");
+
+    // Replace the last (currently typed) token
+    parts[parts.length - 1] = selected;
+
+    let result = parts
+        .map(p => p.trim())
+        .filter(Boolean)
+        .join(", ");
+
+    if (selected !== "Labor") {
+        result += ", ";
+    }
+
+    setDiagnosis(result);
+}
 
   function resetForm() {
     setSource("WALK_IN");
@@ -275,8 +337,66 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
           </div>
           <div className="sm:col-span-2">
             <Label>Diagnosis</Label>
-            <Input name="diagnosis" placeholder="Technician findings" className="mt-1" />
-          </div>
+            <div className="relative mt-1">
+  <Input
+    name="diagnosis"
+    value={diagnosis}
+    autoComplete="off"
+    placeholder="Technician findings"
+    onFocus={() => setShowSuggestions(true)}
+    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+    onChange={(e) => {
+      setDiagnosis(e.target.value);
+      setSelectedIndex(0);
+      setShowSuggestions(true);
+    }}
+    onKeyDown={(e) => {
+      if (!showSuggestions || suggestions.length === 0) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex(i =>
+          Math.min(i + 1, suggestions.length - 1)
+        );
+      }
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex(i =>
+          Math.max(i - 1, 0)
+        );
+      }
+
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        addDiagnosis(suggestions[selectedIndex]);
+      }
+
+      if (e.key === "Escape") {
+        setShowSuggestions(false);
+      }
+    }}
+  />
+
+  {showSuggestions && suggestions.length > 0 && (
+    <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow-lg">
+      {suggestions.map((item, index) => (
+        <div
+          key={item}
+          onMouseDown={() => addDiagnosis(item)}
+          className={`cursor-pointer px-3 py-2 ${
+            index === selectedIndex
+              ? "bg-blue-600 text-white"
+              : "hover:bg-gray-100"
+          }`}
+        >
+          {item}
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+            </div>
 
           <div>
             <Label>Status *</Label>
