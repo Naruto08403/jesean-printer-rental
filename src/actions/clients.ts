@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import Papa from "papaparse";
 import { z } from "zod";
+import { DEFAULT_CLIENT_PORTAL_PASSWORD } from "@/lib/client-portal";
 
 const clientSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -129,7 +130,8 @@ export async function createClientPortalLogin(
   const username = usernameSchema.parse(
     String(formData.get("username") ?? "").toLowerCase().trim()
   );
-  const password = String(formData.get("password") ?? "");
+  const passwordRaw = String(formData.get("password") ?? "").trim();
+  const password = passwordRaw || DEFAULT_CLIENT_PORTAL_PASSWORD;
   if (password.length < 6) {
     throw new Error("Password must be at least 6 characters");
   }
@@ -154,6 +156,38 @@ export async function createClientPortalLogin(
   await prisma.client.update({
     where: { id: clientId },
     data: { userId: user.id },
+  });
+
+  revalidatePath(`/dashboard/clients/${clientId}`);
+}
+
+export async function updateClientPortalPassword(
+  clientId: string,
+  formData: FormData
+) {
+  await requireAdmin();
+
+  const useDefault = formData.get("useDefault") === "true";
+  const password = useDefault
+    ? DEFAULT_CLIENT_PORTAL_PASSWORD
+    : String(formData.get("password") ?? "").trim();
+
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters");
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { userId: true },
+  });
+  if (!client?.userId) {
+    throw new Error("Client has no portal access");
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.user.update({
+    where: { id: client.userId },
+    data: { passwordHash },
   });
 
   revalidatePath(`/dashboard/clients/${clientId}`);

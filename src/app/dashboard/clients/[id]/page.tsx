@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Card, CardTitle } from "@/components/ui/card";
-import { updateClient, createClientPortalLogin } from "@/actions/clients";
+import { updateClient, createClientPortalLogin, updateClientPortalPassword } from "@/actions/clients";
+import { DEFAULT_CLIENT_PORTAL_PASSWORD } from "@/lib/client-portal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -27,6 +28,7 @@ export default async function ClientDetailPage({
 
   const update = updateClient.bind(null, id);
   const createLogin = createClientPortalLogin.bind(null, id);
+  const resetPortalPassword = updateClientPortalPassword.bind(null, id);
 
   return (
     <div className="space-y-6">
@@ -73,9 +75,35 @@ export default async function ClientDetailPage({
         <Card>
           <CardTitle>Client portal login</CardTitle>
           {client.user ? (
-            <p className="mt-2 text-sm text-slate-600">
-              Portal active · username: <strong>{client.user.username}</strong>
-            </p>
+            <div className="mt-4 space-y-4">
+              <p className="text-sm text-slate-600">
+                Portal active · username: <strong>{client.user.username}</strong>
+              </p>
+              <form action={resetPortalPassword} className="space-y-3">
+                <div>
+                  <Label htmlFor="new-password">New password</Label>
+                  <Input
+                    id="new-password"
+                    name="password"
+                    type="password"
+                    minLength={6}
+                    autoComplete="new-password"
+                    placeholder="Enter a new password"
+                    className="mt-1"
+                  />
+                </div>
+                <Button type="submit">Update password</Button>
+              </form>
+              <form action={resetPortalPassword}>
+                <input type="hidden" name="useDefault" value="true" />
+                <Button type="submit" variant="secondary">
+                  Reset to default ({DEFAULT_CLIENT_PORTAL_PASSWORD})
+                </Button>
+              </form>
+              <p className="text-xs text-slate-500">
+                Use reset when the client or you forgot the portal password.
+              </p>
+            </div>
           ) : (
             <form action={createLogin} className="mt-4 space-y-3">
               <div>
@@ -93,7 +121,16 @@ export default async function ClientDetailPage({
               </div>
               <div>
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" name="password" type="password" minLength={6} required />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  minLength={6}
+                  defaultValue={DEFAULT_CLIENT_PORTAL_PASSWORD}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Default is {DEFAULT_CLIENT_PORTAL_PASSWORD} — change if needed.
+                </p>
               </div>
               <Button type="submit">Create portal access</Button>
             </form>
