@@ -43,11 +43,22 @@ const repairs = [
   },
 ];
 
+const catalog = [
+  { name: "Replace Cartridge Magenta", price: 200 },
+  { name: "Replace Cartridge Cyan", price: 200 },
+  { name: "Recover Print Head", price: 250 },
+  { name: "Labor", price: 200 },
+  { name: "Reset Ink Pad", price: 150 },
+  { name: "Scanner Repair", price: 200 },
+  { name: "Sensor Flex Replacement", price: 200 },
+];
+
 const buf = await generateRepairBillingPdfFromTemplate({
   clientName: "CAMAYAHAN ELEMENTARY SCHOOL",
   issueDate: new Date("2026-07-08"),
   lines: [],
   repairs,
+  diagnosisCatalog: catalog,
 });
 
 const out = path.join(root, "tmp-verify-repair-billing.pdf");

@@ -5,6 +5,8 @@ import {
   repairDisplayTitle,
 } from "@/lib/repair-device";
 import { generateRepairBillingPdfFromTemplate } from "@/lib/repair-billing-pdf";
+import { listActiveRepairDiagnosisCatalog } from "@/actions/repair-diagnoses";
+import type { RepairTemplateLineItem } from "@/lib/repair-billing-lines";
 
 export type RepairBillingLine = {
   id: string;
@@ -74,17 +76,23 @@ export function prepareRepairBillingStatement(input: {
 export async function generateRepairBillingPdf(
   statement: RepairBillingStatement & {
     repairs?: Parameters<typeof buildRepairBillingLine>[0][];
+    billingStatementItems?: RepairTemplateLineItem[];
+    jobOrderItems?: RepairTemplateLineItem[];
   }
 ): Promise<Buffer> {
   if (!statement.repairs?.length) {
     throw new Error("Repair billing requires source repair records");
   }
 
-  const { repairs, ...rest } = statement;
+  const { repairs, billingStatementItems, jobOrderItems, ...rest } = statement;
+  const diagnosisCatalog = await listActiveRepairDiagnosisCatalog();
 
   return generateRepairBillingPdfFromTemplate({
     ...rest,
     repairs,
+    diagnosisCatalog,
+    billingStatementItems,
+    jobOrderItems,
   });
 }
 

@@ -7,6 +7,7 @@ import {
   repairBillingFilename,
   repairCustomerDisplayName,
 } from "@/lib/repair-billing";
+import { sanitizeBillingLineItems } from "@/lib/repair-billing-lines";
 
 export async function POST(request: Request) {
   try {
@@ -63,7 +64,14 @@ export async function POST(request: Request) {
       repairs,
     });
 
-    const buffer = await generateRepairBillingPdf(statement);
+    const billingStatementItems = sanitizeBillingLineItems(body.billingStatementItems);
+    const jobOrderItems = sanitizeBillingLineItems(body.jobOrderItems);
+
+    const buffer = await generateRepairBillingPdf({
+      ...statement,
+      ...(billingStatementItems.length > 0 ? { billingStatementItems } : {}),
+      ...(jobOrderItems.length > 0 ? { jobOrderItems } : {}),
+    });
     const filename = repairBillingFilename(clientName, issueDate);
 
     return new NextResponse(new Uint8Array(buffer), {

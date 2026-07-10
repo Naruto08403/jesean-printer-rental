@@ -1,21 +1,21 @@
 import fs from "fs/promises";
 import path from "path";
-import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from "pdf-lib";
-import { formatCustomerDateLine } from "@/lib/rental-billing-shared";
+import { TextAlignment, PDFForm, PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from "pdf-lib";
 import type { RepairBillingStatement } from "@/lib/repair-billing";
 import {
-  buildTemplateLineItems,
+  buildBillingStatementLineItems,
+  buildJobOrderLineItems,
+  padLineItems,
   repairBillingLineTotal,
+  type DiagnosisPriceEntry,
   type RepairBillingRepairRecord,
   type RepairTemplateLineItem,
 } from "@/lib/repair-billing-lines";
-
+import fontkit from "@pdf-lib/fontkit";
 const TEMPLATE_PATH = path.join(process.cwd(), "templates", "repair_template.pdf");
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
-
-
 
 /** Keep template header (logo, company info, title). Content below is redrawn. */
 const HEADER_BOTTOM_Y = 660;
@@ -27,6 +27,7 @@ const COL_PRICE = 88;
 const COL_DESC = TABLE_WIDTH - COL_UNIT - COL_PRICE;
 
 const ROW_HEIGHT = 16;
+const DESC_LINE_HEIGHT = 10;
 const TABLE_HEADER_HEIGHT = 18;
 
 /** Space reserved at bottom for total + received note + signatures. */
@@ -35,6 +36,10 @@ const FOOTER_BLOCK_HEIGHT = 118;
 const COLOR_HEADER_FILL = rgb(0.718, 0.835, 0.714);
 const COLOR_BORDER = rgb(0.45, 0.55, 0.45);
 const COLOR_TEXT = rgb(0.1, 0.1, 0.1);
+let index = 0;
+let totalIndex = 0;
+
+const MIN_ROWS = 5;
 
 type Fonts = {
   regular: PDFFont;
@@ -48,6 +53,9 @@ type PageLayout = {
 
 export type RepairBillingPdfInput = RepairBillingStatement & {
   repairs: RepairBillingRepairRecord[];
+  diagnosisCatalog?: DiagnosisPriceEntry[];
+  billingStatementItems?: RepairTemplateLineItem[];
+  jobOrderItems?: RepairTemplateLineItem[];
   representativeName?: string;
   documentTitle?: string;
 };
@@ -67,6 +75,11 @@ function truncateText(text: string, font: PDFFont, size: number, maxWidth: numbe
     trimmed = trimmed.slice(0, -1);
   }
   return `${trimmed}…`;
+}
+
+function itemRowHeight(item: RepairTemplateLineItem) {
+  const lineCount = Math.max(1, item.description.split("\n").length);
+  return ROW_HEIGHT + (lineCount - 1) * DESC_LINE_HEIGHT;
 }
 
 function drawCenteredText(
@@ -148,57 +161,119 @@ function drawTableHeader(page: PDFPage, fonts: Fonts, y: number) {
   drawCenteredText(page, "Description", MARGIN_X + COL_UNIT, COL_DESC, y, fonts.bold, 9);
   drawCenteredText(page, "Price", MARGIN_X + COL_UNIT + COL_DESC, COL_PRICE, y, fonts.bold, 9);
 }
+function addPriceField(
+  form: PDFForm,
+  page: PDFPage,
+  name: string,
+  value: number | null,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  const field = form.createTextField(name);
+  field.setAlignment(TextAlignment.Center);
+  field.setText(value != null ? formatPrice(value) : "");
+
+  field.addToPage(page, {
+    x,
+    y,
+    width,
+    height,
+    borderWidth: 0,
+  });
+
+  field.setFontSize(8);
+}
 
 function drawTableRow(
   page: PDFPage,
   item: RepairTemplateLineItem,
   fonts: Fonts,
-  y: number
+  y: number,
+  form: PDFForm,
+  rowIndex: number
 ) {
-  const rowBottom = y - ROW_HEIGHT + 2;
+  const descLines = item.description ? item.description.split("\n") : [""];
+  const rowHeight = itemRowHeight(item);
+  const rowBottom = y - rowHeight + 2;
+
   page.drawRectangle({
     x: MARGIN_X,
     y: rowBottom,
     width: TABLE_WIDTH,
-    height: ROW_HEIGHT,
+    height: rowHeight,
     borderColor: COLOR_BORDER,
     borderWidth: 0.5,
   });
 
   page.drawLine({
     start: { x: MARGIN_X + COL_UNIT, y: rowBottom },
-    end: { x: MARGIN_X + COL_UNIT, y: rowBottom + ROW_HEIGHT },
+    end: { x: MARGIN_X + COL_UNIT, y: rowBottom + rowHeight },
     color: COLOR_BORDER,
     thickness: 0.5,
   });
   page.drawLine({
     start: { x: MARGIN_X + COL_UNIT + COL_DESC, y: rowBottom },
-    end: { x: MARGIN_X + COL_UNIT + COL_DESC, y: rowBottom + ROW_HEIGHT },
+    end: { x: MARGIN_X + COL_UNIT + COL_DESC, y: rowBottom + rowHeight },
     color: COLOR_BORDER,
     thickness: 0.5,
   });
 
-  const textY = y - 11;
+  const midY = rowBottom + rowHeight / 2 - 3;
   if (item.unitLabel) {
     const unit = truncateText(item.unitLabel, fonts.regular, 8, COL_UNIT - 8);
-    drawCenteredText(page, unit, MARGIN_X, COL_UNIT, textY, fonts.regular, 8);
+    drawCenteredText(page, unit, MARGIN_X, COL_UNIT, midY, fonts.regular, 8);
   }
-  const desc = truncateText(item.description, fonts.regular, 8, COL_DESC - 8);
-  drawCenteredText(page, desc, MARGIN_X + COL_UNIT, COL_DESC, textY, fonts.regular, 8);
-  if (item.amount != null) {
+
+  const descTopY = y - 11;
+  descLines.forEach((line, index) => {
+    const desc = truncateText(line, fonts.regular, 8, COL_DESC - 8);
     drawCenteredText(
       page,
-      formatPrice(item.amount),
-      MARGIN_X + COL_UNIT + COL_DESC,
-      COL_PRICE,
-      textY,
+      desc,
+      MARGIN_X + COL_UNIT,
+      COL_DESC,
+      descTopY - index * DESC_LINE_HEIGHT,
       fonts.regular,
       8
     );
+  });
+
+  if (item.amount != null) {
+    // drawCenteredText(
+    //   page,
+    //   formatPrice(item.amount),
+    //   MARGIN_X + COL_UNIT + COL_DESC,
+    //   COL_PRICE,
+    //   midY,
+    //   fonts.regular,
+    //   8
+    // );
+    index++;
+
+    addPriceField(
+      form,
+      page,
+      `price_${index}`,
+      item.amount,
+      MARGIN_X + COL_UNIT + COL_DESC + 2,
+      rowBottom + 2,
+      COL_PRICE - 4,
+      rowHeight - 4
+  );
   }
 }
+function documentHeight(items: RepairTemplateLineItem[]) {
+  return (
+      TABLE_HEADER_HEIGHT +
+      items.reduce((h, item) => h + itemRowHeight(item), 0) +
+      TABLE_HEADER_HEIGHT + // total row
+      FOOTER_BLOCK_HEIGHT
+  );
+}
 
-function drawTotalRow(page: PDFPage, fonts: Fonts, y: number, total: number) {
+function drawTotalRow(page: PDFPage, fonts: Fonts, y: number, total: number, form: PDFForm) {
   page.drawRectangle({
     x: MARGIN_X,
     y: y - 11,
@@ -210,21 +285,37 @@ function drawTotalRow(page: PDFPage, fonts: Fonts, y: number, total: number) {
   });
   y -= 8;
   drawCenteredText(page, "TOTAL", MARGIN_X + COL_UNIT, COL_DESC, y, fonts.bold, 9);
-  drawCenteredText(
-    page,
-    formatPrice(total),
-    MARGIN_X + COL_UNIT + COL_DESC,
-    COL_PRICE,
-    y,
-    fonts.bold,
-    9
-  );
+//   drawCenteredText(
+//     page,
+//     formatPrice(total),
+//     MARGIN_X + COL_UNIT + COL_DESC,
+//     COL_PRICE,
+//     y,
+//     fonts.bold,
+//     9
+//   );
+  totalIndex++;
+  const totalField = form.createTextField(`grand_total_${totalIndex}`);
+  totalField.setAlignment(TextAlignment.Center);
+
+totalField.setText(formatPrice(total));
+
+totalField.addToPage(page, {
+    x: MARGIN_X + COL_UNIT + COL_DESC + 2,
+    y: y ,
+    width: COL_PRICE - 4,
+    height: 14,
+    borderWidth: 0,
+    backgroundColor: COLOR_HEADER_FILL
+});
+
+totalField.setFontSize(9);
 }
 
 function drawFooterBlock(page: PDFPage, fonts: Fonts, y: number, representative: string) {
   page.drawText("Received the above unit in good order and condition.", {
     x: MARGIN_X + 180,
-    y: y ,
+    y: y,
     size: 8,
     font: fonts.regular,
     color: COLOR_TEXT,
@@ -241,7 +332,7 @@ function drawFooterBlock(page: PDFPage, fonts: Fonts, y: number, representative:
   page.drawLine({
     start: {
       x: MARGIN_X + 8,
-      y: y + 8 - 2, // distance below text
+      y: y + 8 - 2,
     },
     end: {
       x: MARGIN_X + 8 + 110,
@@ -280,27 +371,41 @@ function drawFooterBlock(page: PDFPage, fonts: Fonts, y: number, representative:
   });
 }
 
-function paginateItems(items: RepairTemplateLineItem[], rowsPerPage: number) {
-  const pages: RepairTemplateLineItem[][] = [];
-  for (let i = 0; i < items.length; i += rowsPerPage) {
-    pages.push(items.slice(i, i + rowsPerPage));
-  }
-  return pages.length > 0 ? pages : [[]];
-}
-
 function bodyBounds(): PageLayout {
   const bodyTopY = HEADER_BOTTOM_Y - 24;
   const bodyBottomY = FOOTER_BLOCK_HEIGHT + TABLE_HEADER_HEIGHT + 8;
   return { bodyTopY, bodyBottomY };
 }
 
-function rowsPerPage(layout: PageLayout) {
-  return Math.floor((layout.bodyTopY - layout.bodyBottomY) / ROW_HEIGHT);
+function availableBodyHeight(layout: PageLayout) {
+  return layout.bodyTopY - layout.bodyBottomY;
+}
+
+function paginateItems(items: RepairTemplateLineItem[], maxHeight: number) {
+  const pages: RepairTemplateLineItem[][] = [];
+  let current: RepairTemplateLineItem[] = [];
+  let used = 0;
+
+  for (const item of items) {
+    const height = itemRowHeight(item);
+    if (current.length > 0 && used + height > maxHeight) {
+      pages.push(current);
+      current = [item];
+      used = height;
+      continue;
+    }
+    current.push(item);
+    used += height;
+  }
+
+  if (current.length > 0) pages.push(current);
+  return pages.length > 0 ? pages : [[]];
 }
 
 async function createStatementPage(
   pdf: PDFDocument,
   templateDoc: PDFDocument,
+  form: PDFForm,
   fonts: Fonts,
   input: {
     clientName: string;
@@ -315,6 +420,13 @@ async function createStatementPage(
 ) {
   const [templatePage] = await pdf.copyPages(templateDoc, [0]);
   pdf.addPage(templatePage);
+  pdf.registerFontkit(fontkit);
+
+  const centuryBytes = await fs.readFile(
+    path.join(process.cwd(), "fonts", "CenturyGothic-Bold.ttf")
+  );
+
+  const centuryBold = await pdf.embedFont(centuryBytes);
   const page = pdf.getPages()[pdf.getPageCount() - 1]!;
 
   clearDynamicArea(page);
@@ -322,33 +434,80 @@ async function createStatementPage(
   const layout = bodyBounds();
   let y = layout.bodyTopY;
 
-  if (input.showContinued) {
-    drawCenteredText(
-      page,
-      `${input.documentTitle} (continued)`,
-      MARGIN_X,
-      TABLE_WIDTH,
-      y + 10,
-      fonts.bold,
-      10
-    );
-    y -= 8;
-  }
+  // if (input.showContinued) {
+  //   drawCenteredText(
+  //     page,
+  //     `${input.documentTitle} (continued)`,
+  //     MARGIN_X,
+  //     TABLE_WIDTH,
+  //     y + 10,
+  //     fonts.bold,
+  //     10
+  //   );
+  //   y -= 8;
+  // }
+  const title = input.showContinued
+  ? `${input.documentTitle} (continued)`
+  : input.documentTitle;
+
+  drawCenteredText(
+    page,
+    title,
+    MARGIN_X,
+    TABLE_WIDTH,
+    y + 10,
+    centuryBold,
+  15
+  );
+
+  y -= 8;
 
   drawCustomerLine(page, input.clientName, input.issueDate, fonts, y);
   y -= 18;
   drawTableHeader(page, fonts, y);
   y -= ROW_HEIGHT;
 
-  for (const item of input.pageItems) {
-    drawTableRow(page, item, fonts, y);
-    y -= ROW_HEIGHT;
+  for (let i = 0; i < input.pageItems.length; i++) {
+    const item = input.pageItems[i];
+    drawTableRow(page, item, fonts, y, form, i);
+    y -= itemRowHeight(item);
   }
 
   if (input.isLastPage) {
     y -= 4;
-    drawTotalRow(page, fonts, y, input.pageTotal);
+    drawTotalRow(page, fonts, y, input.pageTotal, form);
     drawFooterBlock(page, fonts, y - 28, input.representative);
+  }
+}
+
+async function appendDocumentPages(
+  pdf: PDFDocument,
+  templateDoc: PDFDocument,
+  form: PDFForm,
+  fonts: Fonts,
+  input: {
+    clientName: string;
+    issueDate: Date;
+    representative: string;
+    documentTitle: string;
+    lineItems: RepairTemplateLineItem[];
+    pageTotal: number;
+  }
+) {
+  const layout = bodyBounds();
+  const pages = paginateItems(input.lineItems, availableBodyHeight(layout));
+
+  for (let i = 0; i < pages.length; i++) {
+    await createStatementPage(pdf, templateDoc, form, fonts, {
+      clientName: input.clientName,
+      issueDate: input.issueDate,
+      representative: input.representative,
+      documentTitle: input.documentTitle,
+      pageItems: pages[i]!,
+      pageTotal: input.pageTotal,
+      isLastPage: i === pages.length - 1,
+      showContinued: i > 0,
+    });
   }
 }
 
@@ -360,58 +519,50 @@ export async function generateRepairBillingPdfFromTemplate(
     process.env.BILLING_REPRESENTATIVE_NAME ??
     "SUNDAY SETH A. ATUEL";
 
-  const documentTitle = input.documentTitle ?? "BILLING STATEMENT";
-  const lineItems = buildTemplateLineItems(input.repairs);
-  const MIN_ROWS = 5;
+  const catalog = input.diagnosisCatalog ?? [];
+  const billingBase = input.billingStatementItems?.length
+    ? input.billingStatementItems
+    : buildBillingStatementLineItems(input.repairs);
+  const jobOrderBase = input.jobOrderItems?.length
+    ? input.jobOrderItems
+    : buildJobOrderLineItems(input.repairs, catalog);
 
-  while (lineItems.length < MIN_ROWS) {
-    lineItems.push({
-      unitLabel: "",
-      description: "",
-      amount: null,
-    } as RepairTemplateLineItem);
-  }
-  const grandTotal = repairBillingLineTotal(lineItems);
+  const billingLineItems = padLineItems(billingBase, MIN_ROWS);
+  const jobOrderLineItems = padLineItems(jobOrderBase, MIN_ROWS);
+
+  const billingTotal = repairBillingLineTotal(billingBase);
+  const jobOrderTotal = repairBillingLineTotal(jobOrderBase);
 
   const templateBytes = await fs.readFile(TEMPLATE_PATH);
   const templateDoc = await PDFDocument.load(templateBytes);
   const pdf = await PDFDocument.create();
+  
+
+  
+  const form = pdf.getForm();
 
   const fonts: Fonts = {
     regular: await pdf.embedFont(StandardFonts.Helvetica),
     bold: await pdf.embedFont(StandardFonts.HelveticaBold),
   };
 
-  const layout = bodyBounds();
-  const pages = paginateItems(lineItems, rowsPerPage(layout));
+  await appendDocumentPages(pdf, templateDoc, form, fonts, {
+    clientName: input.clientName,
+    issueDate: input.issueDate,
+    representative,
+    documentTitle: input.documentTitle ?? "BILLING STATEMENT",
+    lineItems: billingLineItems,
+    pageTotal: billingTotal,
+  });
 
-  for (let i = 0; i < pages.length; i++) {
-    await createStatementPage(pdf, templateDoc, fonts, {
-      clientName: input.clientName,
-      issueDate: input.issueDate,
-      representative,
-      documentTitle,
-      pageItems: pages[i]!,
-      pageTotal: grandTotal,
-      isLastPage: i === pages.length - 1,
-      showContinued: i > 0,
-    });
-  }
-
-  // Job order copy on its own page(s), matching prior Excel behavior.
-  const jobOrderPages = paginateItems(lineItems, rowsPerPage(layout));
-  for (let i = 0; i < jobOrderPages.length; i++) {
-    await createStatementPage(pdf, templateDoc, fonts, {
-      clientName: input.clientName,
-      issueDate: input.issueDate,
-      representative,
-      documentTitle: "JOB ORDER",
-      pageItems: jobOrderPages[i]!,
-      pageTotal: grandTotal,
-      isLastPage: i === jobOrderPages.length - 1,
-      showContinued: i > 0,
-    });
-  }
+  await appendDocumentPages(pdf, templateDoc, form, fonts, {
+    clientName: input.clientName,
+    issueDate: input.issueDate,
+    representative,
+    documentTitle: "JOB ORDER",
+    lineItems: jobOrderLineItems,
+    pageTotal: jobOrderTotal,
+  });
 
   return Buffer.from(await pdf.save());
 }
