@@ -12,6 +12,7 @@ import {
   RepairViewModal,
   type RepairDetailPayload,
 } from "@/components/forms/repair-view-modal";
+import { DeleteRepairButton } from "@/components/forms/delete-repair-button";
 import { PaymentStatus } from "@/components/payment-status";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ export type RepairListRow = {
   amountLabel: string;
   isChargeWaived: boolean;
   paymentSummary: PaymentSummary;
+  paymentCount: number;
   searchText: string;
   isUnpaid: boolean;
 };
@@ -237,13 +239,22 @@ export function RepairsWorkspace({
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setViewRepairId(row.id)}
-                      className="text-brand-600 hover:underline"
-                    >
-                      View
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setViewRepairId(row.id)}
+                        className="text-brand-600 hover:underline"
+                      >
+                        View
+                      </button>
+                      <DeleteRepairButton
+                        repairId={row.id}
+                        label="Delete"
+                        paymentCount={row.paymentCount}
+                        variant="ghost"
+                        className="px-2 py-1 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

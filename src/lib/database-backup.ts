@@ -20,6 +20,7 @@ export type DatabaseBackupPayload = {
     cctvInstallations: BackupCctvInstallation[];
     payments: BackupPayment[];
     printerAuditLogs: BackupPrinterAuditLog[];
+    repairDiagnosisOptions?: BackupRepairDiagnosisOption[];
   };
 };
 
@@ -54,6 +55,8 @@ type BackupPrinter = {
   brand: string | null;
   model: string | null;
   price: number | null;
+  type: string;
+  ownerClientId: string | null;
   status: string;
   notes: string | null;
   createdAt: string;
@@ -166,6 +169,16 @@ type BackupPrinterAuditLog = {
   createdAt: string;
 };
 
+type BackupRepairDiagnosisOption = {
+  id: string;
+  name: string;
+  price: number;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 function toIso(value: Date | null | undefined): string | null {
   if (value == null) return null;
   return value.toISOString();
@@ -197,6 +210,7 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     cctvInstallations,
     payments,
     printerAuditLogs,
+    repairDiagnosisOptions,
   ] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.client.findMany({ orderBy: { createdAt: "asc" } }),
@@ -209,6 +223,7 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     prisma.cctvInstallation.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.payment.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.printerAuditLog.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.repairDiagnosisOption.findMany({ orderBy: { createdAt: "asc" } }),
   ]);
 
   const data = {
@@ -270,6 +285,11 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     printerAuditLogs: printerAuditLogs.map((l) => ({
       ...l,
       createdAt: l.createdAt.toISOString(),
+    })),
+    repairDiagnosisOptions: repairDiagnosisOptions.map((d) => ({
+      ...d,
+      createdAt: d.createdAt.toISOString(),
+      updatedAt: d.updatedAt.toISOString(),
     })),
   };
 
@@ -366,6 +386,7 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
       await tx.rentalPausePeriod.deleteMany();
       await tx.rental.deleteMany();
       await tx.repair.deleteMany();
+      await tx.repairDiagnosisOption.deleteMany();
       await tx.sale.deleteMany();
       await tx.cctvInstallation.deleteMany();
       await tx.client.deleteMany();
@@ -398,6 +419,7 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
         await tx.printer.createMany({
           data: data.printers.map((p) => ({
             ...p,
+            type: (p.type === "WALK_IN" ? "WALK_IN" : "RENTAL") as never,
             status: p.status as never,
             createdAt: parseRequiredDate(p.createdAt),
             updatedAt: parseRequiredDate(p.updatedAt),
@@ -493,6 +515,17 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
             ...l,
             action: l.action as never,
             createdAt: parseRequiredDate(l.createdAt),
+          })),
+        });
+      }
+
+      const diagnosisRows = data.repairDiagnosisOptions ?? [];
+      if (diagnosisRows.length > 0) {
+        await tx.repairDiagnosisOption.createMany({
+          data: diagnosisRows.map((d) => ({
+            ...d,
+            createdAt: parseRequiredDate(d.createdAt),
+            updatedAt: parseRequiredDate(d.updatedAt),
           })),
         });
       }

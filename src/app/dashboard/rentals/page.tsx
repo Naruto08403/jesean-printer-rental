@@ -9,7 +9,7 @@ import { GenerateBillingModal } from "@/components/forms/generate-billing-modal"
 import { ManageClientPauseModal } from "@/components/forms/manage-client-pause-modal";
 import { getClientPaymentSuggestion } from "@/lib/rental-annual";
 import { formatPausePeriodRange, pausePeriodKey } from "@/lib/rental-pause";
-
+import { ExportRentalsButton } from "@/components/export-rental-button";
 export default async function RentalsPage() {
   const [rentals, clients, printers] = await Promise.all([
     prisma.rental.findMany({
@@ -18,7 +18,7 @@ export default async function RentalsPage() {
     }),
     prisma.client.findMany({ orderBy: { name: "asc" } }),
     prisma.printer.findMany({
-      where: { status: { in: ["AVAILABLE", "RENTED"] } },
+      where: { status: { in: ["AVAILABLE", "RENTED"] }, type: "RENTAL" },
       orderBy: { brand: "asc" },
     }),
   ]);
@@ -31,11 +31,24 @@ export default async function RentalsPage() {
     rentalsByClient.set(rental.clientId, list);
   }
 
-  const clientOptions = clients
-    .filter((c) => clientIdsWithRentals.has(c.id))
-    .map((c) => {
+  // const clientOptions = clients
+  //   .filter((c) => clientIdsWithRentals.has(c.id))
+  //   .map((c) => {
+  //     const clientRentals = rentalsByClient.get(c.id) ?? [];
+  //     const suggestion = getClientPaymentSuggestion(clientRentals);
+  //     return {
+  //       id: c.id,
+  //       label: c.name,
+  //       monthlyPayable: suggestion?.monthlyPayable ?? 0,
+  //       suggestedAmount: suggestion?.suggestedAmount ?? 0,
+  //       unitCount: suggestion?.unitCount ?? 0,
+  //     };
+  //   });
+  
+    const clientOptions = clients.map((c) => {
       const clientRentals = rentalsByClient.get(c.id) ?? [];
       const suggestion = getClientPaymentSuggestion(clientRentals);
+    
       return {
         id: c.id,
         label: c.name,
@@ -107,6 +120,7 @@ export default async function RentalsPage() {
     <div className="space-y-6">
       <PageHeader title="Printer rentals" subtitle={`${rentals.length} total · annual view`}>
         <ImportRentalsModal />
+        <ExportRentalsButton/>
         <RentalPaymentRecordsModal
           clients={clientOptions.map(({ id, label }) => ({ id, label }))}
         />

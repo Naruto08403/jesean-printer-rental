@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { RepairPrinterSource, ServiceStatus } from "@prisma/client";
 import { getRepairDeviceTimeline, type getRepairFormOptions } from "@/actions/repairs";
 import { EditRepairJobForm, type RepairEdit } from "@/components/forms/edit-repair-job-form";
+import { DeleteRepairButton } from "@/components/forms/delete-repair-button";
 import { PaymentForm } from "@/components/payment-form";
 import { PaymentStatus } from "@/components/payment-status";
 import { RepairDeviceHistory } from "@/components/repair-device-history";
@@ -148,6 +149,17 @@ export function RepairViewModal({
             Open full page
           </Link>
         </p>
+
+        <div className="flex justify-center border-t border-slate-100 pt-4">
+          <DeleteRepairButton
+            repairId={repair.id}
+            paymentCount={repair.payments.length}
+            redirectTo="/dashboard/repairs"
+            onDeleted={onClose}
+            variant="secondary"
+            className="text-red-600 hover:text-red-700"
+          />
+        </div>
       </div>
     </Modal>
   );

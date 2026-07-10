@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { createRepair } from "@/actions/repairs";
 import { Modal } from "@/components/ui/modal";
@@ -12,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import type { RepairPrinterSource } from "@prisma/client";
 import type { getRepairFormOptions } from "@/actions/repairs";
+import { DiagnosisPicker, useDiagnosisSelection } from "@/components/forms/diagnosis-picker";
+import { formatCurrency } from "@/lib/utils";
 
 type FormOptions = Awaited<ReturnType<typeof getRepairFormOptions>>;
 
@@ -21,53 +24,10 @@ function todayInput() {
 }
 
 export function AddRepairModal({ options }: { options: FormOptions }) {
-
-  const DIAGNOSIS_OPTIONS = [
-    "Reset Ink Pad",
-    "Replace Purge Gear",
-    "Recover Print Head",
-    "Replace Flex ASSY",
-    "Replace Cartridge Magent",
-    "Replace Cartridge Yellow",
-    "Replace Cartridge Cyan",
-    "Replace Cartridge Black",
-    "Labor",
-    
-  ];
-  const [diagnosis, setDiagnosis] = useState("");
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const currentSearch = diagnosis
-  .split(",")
-  .pop()
-  ?.trim()
-  .toLowerCase() ?? "";
-
-  const filteredDiagnosis = DIAGNOSIS_OPTIONS.filter(item => {
-    if (item === "Labor") return false;
-  
-    if (diagnosis
-        .toLowerCase()
-        .split(",")
-        .map(x => x.trim())
-        .includes(item.toLowerCase()))
-      return false;
-  
-    return item.toLowerCase().includes(currentSearch);
-  });
-  
-  const suggestions =
-    currentSearch === ""
-      ? [...filteredDiagnosis, "Labor"]
-      : [
-          ...filteredDiagnosis,
-          ...( "Labor".toLowerCase().includes(currentSearch)
-              ? ["Labor"]
-              : []),
-        ];
 
   const [source, setSource] = useState<RepairPrinterSource>("WALK_IN");
   const [clientId, setClientId] = useState("");
@@ -78,10 +38,10 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
-  const [totalAmount, setTotalAmount] = useState("0");
   const [chargeWaived, setChargeWaived] = useState(false);
 
   const selectedPrinter = options.printers.find((p) => p.id === printerId);
+  const selectedWalkInPrinter = options.walkInPrinters.find((p) => p.id === printerId);
   const selectedRental = options.rentalPrinters.find((r) => r.rentalId === rentalId);
   const selectedHistory = options.deviceHistory.find((h) => h.id === historyRepairId);
 
@@ -104,9 +64,14 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
     return false;
   }, [source, selectedPrinter, selectedHistory, options]);
 
+  const isWaived = chargeWaived || autoWaive;
+  const { total: diagnosisTotal } = useDiagnosisSelection(
+    options.diagnosisCatalog,
+    selectedDiagnoses
+  );
+
   useEffect(() => {
     setChargeWaived(autoWaive);
-    if (autoWaive) setTotalAmount("0");
   }, [autoWaive]);
 
   useEffect(() => {
@@ -141,23 +106,28 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
     }
   }, [source, selectedHistory]);
 
-  function addDiagnosis(selected: string) {
-    const parts = diagnosis.split(",");
-
-    // Replace the last (currently typed) token
-    parts[parts.length - 1] = selected;
-
-    let result = parts
-        .map(p => p.trim())
-        .filter(Boolean)
-        .join(", ");
-
-    if (selected !== "Labor") {
-        result += ", ";
+  useEffect(() => {
+    if (source !== "WALK_IN" || !selectedWalkInPrinter) return;
+    setBrand(selectedWalkInPrinter.brand ?? "");
+    setModel(selectedWalkInPrinter.model ?? "");
+    setSerialNumber(selectedWalkInPrinter.serialNumber ?? "");
+    if (selectedWalkInPrinter.ownerClientId) {
+      setClientId(selectedWalkInPrinter.ownerClientId);
+      setCustomerName(selectedWalkInPrinter.ownerLabel);
     }
+  }, [source, selectedWalkInPrinter]);
 
-    setDiagnosis(result);
-}
+  function handleSourceChange(next: RepairPrinterSource) {
+    setSource(next);
+    setPrinterId("");
+    setRentalId("");
+    setHistoryRepairId("");
+    if (next !== "WALK_IN") {
+      setBrand("");
+      setModel("");
+      setSerialNumber("");
+    }
+  }
 
   function resetForm() {
     setSource("WALK_IN");
@@ -169,7 +139,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
     setBrand("");
     setModel("");
     setSerialNumber("");
-    setTotalAmount("0");
+    setSelectedDiagnoses([]);
     setChargeWaived(false);
   }
 
@@ -201,14 +171,20 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
                   fd.set("model", p.model ?? "");
                   fd.set("serialNumber", p.serialNumber ?? "");
                 }
+              } else if (source === "WALK_IN" && printerId) {
+                const p = options.walkInPrinters.find((x) => x.id === printerId);
+                if (p) {
+                  fd.set("brand", p.brand ?? "");
+                  fd.set("model", p.model ?? "");
+                  fd.set("serialNumber", p.serialNumber ?? "");
+                }
               } else {
                 fd.set("brand", brand);
                 fd.set("model", model);
                 fd.set("serialNumber", serialNumber);
               }
-              if (chargeWaived || autoWaive) {
+              if (isWaived) {
                 fd.set("isChargeWaived", "true");
-                fd.set("totalAmount", "0");
               }
               const created = await createRepair(fd);
               setOpen(false);
@@ -221,7 +197,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
             <Label>Printer source *</Label>
             <Select
               value={source}
-              onChange={(e) => setSource(e.target.value as RepairPrinterSource)}
+              onChange={(e) => handleSourceChange(e.target.value as RepairPrinterSource)}
               className="mt-1"
             >
               <option value="RENTAL">My rental unit (no repair charge)</option>
@@ -253,7 +229,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
 
           {source === "INVENTORY" && (
             <div className="sm:col-span-2">
-              <Label>Printer from inventory *</Label>
+              <Label>Rental fleet printer *</Label>
               <Select
                 value={printerId}
                 onChange={(e) => setPrinterId(e.target.value)}
@@ -268,6 +244,27 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
                   </option>
                 ))}
               </Select>
+            </div>
+          )}
+
+          {source === "WALK_IN" && (
+            <div className="sm:col-span-2">
+              <Label>Walk-in printer</Label>
+              <Select
+                value={printerId}
+                onChange={(e) => setPrinterId(e.target.value)}
+                className="mt-1"
+              >
+                <option value="">Register new device</option>
+                {options.walkInPrinters.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label} · {p.ownerLabel}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-slate-500">
+                Pick a registered walk-in printer, or leave blank to add a new device.
+              </p>
             </div>
           )}
 
@@ -292,8 +289,16 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
           )}
 
           <div>
-            <Label>Client (optional)</Label>
-            <Select value={clientId} onChange={(e) => setClientId(e.target.value)} className="mt-1" disabled={source === "RENTAL"}>
+            <Label>
+              Client {source === "WALK_IN" && !printerId ? "*" : ""}
+            </Label>
+            <Select
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className="mt-1"
+              disabled={source === "RENTAL" || (source === "WALK_IN" && Boolean(printerId))}
+              required={source === "WALK_IN" && !printerId}
+            >
               <option value="">Walk-in / none</option>
               {options.clients.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -303,18 +308,18 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
             </Select>
           </div>
           <div>
-            <Label>Customer name {source === "WALK_IN" && !clientId ? "*" : ""}</Label>
+            <Label>Customer name {source === "WALK_IN" && !clientId && !printerId ? "*" : ""}</Label>
             <Input
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Owner / walk-in name"
               className="mt-1"
-              required={source === "WALK_IN" && !clientId}
-              disabled={source === "RENTAL"}
+              required={source === "WALK_IN" && !clientId && !printerId}
+              disabled={source === "RENTAL" || (source === "WALK_IN" && Boolean(printerId))}
             />
           </div>
 
-          {(source === "WALK_IN" || source === "HISTORY") && (
+          {(source === "WALK_IN" && !printerId) || source === "HISTORY" ? (
             <>
               <div>
                 <Label>Brand</Label>
@@ -329,74 +334,31 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
                 <Input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} className="mt-1" />
               </div>
             </>
-          )}
+          ) : null}
 
           <div className="sm:col-span-2">
             <Label>Problem *</Label>
             <Input name="problem" required placeholder="Reported issue" className="mt-1" />
           </div>
+
           <div className="sm:col-span-2">
-            <Label>Diagnosis</Label>
-            <div className="relative mt-1">
-  <Input
-    name="diagnosis"
-    value={diagnosis}
-    autoComplete="off"
-    placeholder="Technician findings"
-    onFocus={() => setShowSuggestions(true)}
-    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-    onChange={(e) => {
-      setDiagnosis(e.target.value);
-      setSelectedIndex(0);
-      setShowSuggestions(true);
-    }}
-    onKeyDown={(e) => {
-      if (!showSuggestions || suggestions.length === 0) return;
-
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIndex(i =>
-          Math.min(i + 1, suggestions.length - 1)
-        );
-      }
-
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIndex(i =>
-          Math.max(i - 1, 0)
-        );
-      }
-
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        addDiagnosis(suggestions[selectedIndex]);
-      }
-
-      if (e.key === "Escape") {
-        setShowSuggestions(false);
-      }
-    }}
-  />
-
-  {showSuggestions && suggestions.length > 0 && (
-    <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow-lg">
-      {suggestions.map((item, index) => (
-        <div
-          key={item}
-          onMouseDown={() => addDiagnosis(item)}
-          className={`cursor-pointer px-3 py-2 ${
-            index === selectedIndex
-              ? "bg-blue-600 text-white"
-              : "hover:bg-gray-100"
-          }`}
-        >
-          {item}
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <Label>Diagnosis</Label>
+              <Link
+                href="/dashboard/repairs/diagnoses"
+                className="text-xs text-brand-600 hover:underline"
+                target="_blank"
+              >
+                Manage prices
+              </Link>
             </div>
+            <DiagnosisPicker
+              catalog={options.diagnosisCatalog}
+              selectedNames={selectedDiagnoses}
+              onChange={setSelectedDiagnoses}
+              disabled={false}
+            />
+          </div>
 
           <div>
             <Label>Status *</Label>
@@ -409,17 +371,15 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
           </div>
           <div>
             <Label>Repair price (PHP)</Label>
-            <Input
-              name="totalAmount"
-              type="number"
-              step="0.01"
-              min="0"
-              value={chargeWaived || autoWaive ? "0" : totalAmount}
-              onChange={(e) => setTotalAmount(e.target.value)}
-              disabled={chargeWaived || autoWaive}
-              className="mt-1"
-            />
-            {(chargeWaived || autoWaive) && (
+            <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+              {isWaived ? (
+                <span className="font-medium text-emerald-700">No charge</span>
+              ) : (
+                <span className="font-medium text-slate-900">{formatCurrency(diagnosisTotal)}</span>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Calculated from selected diagnosis prices.</p>
+            {isWaived && (
               <p className="mt-1 text-xs text-emerald-700">No charge — rental unit</p>
             )}
             {source !== "RENTAL" && !autoWaive && (
@@ -427,10 +387,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
                 <input
                   type="checkbox"
                   checked={chargeWaived}
-                  onChange={(e) => {
-                    setChargeWaived(e.target.checked);
-                    if (e.target.checked) setTotalAmount("0");
-                  }}
+                  onChange={(e) => setChargeWaived(e.target.checked)}
                 />
                 Waive charge (goodwill / warranty)
               </label>

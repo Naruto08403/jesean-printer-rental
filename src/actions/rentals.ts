@@ -47,6 +47,11 @@ export async function createRental(formData: FormData) {
   });
 
   if (printerId) {
+    const printer = await prisma.printer.findUnique({ where: { id: printerId } });
+    if (!printer) throw new Error("Printer not found");
+    if (printer.type !== "RENTAL") {
+      throw new Error("Only rental fleet printers can be assigned to rentals");
+    }
     await prisma.printer.update({
       where: { id: printerId },
       data: { status: "RENTED" },
@@ -97,6 +102,11 @@ export async function importRentalsFromCsv(csvText: string) {
     });
     if (!printer) {
       errors.push(`Printer not found: ${serialNumber}`);
+      skipped++;
+      continue;
+    }
+    if (printer.type !== "RENTAL") {
+      errors.push(`Printer ${serialNumber} is not rental fleet`);
       skipped++;
       continue;
     }

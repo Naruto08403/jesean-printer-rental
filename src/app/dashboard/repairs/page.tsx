@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { toSearchText } from "@/lib/search";
@@ -100,6 +101,7 @@ export default async function RepairsPage() {
         : formatCurrency(r.totalAmount),
       isChargeWaived: r.isChargeWaived,
       paymentSummary,
+      paymentCount: r.payments.length,
       isUnpaid,
       searchText: toSearchText(
         customerLabel,
@@ -123,6 +125,12 @@ export default async function RepairsPage() {
     <div className="space-y-6">
       <PageHeader title="Repairs" subtitle={`${repairs.length} total · rentals, walk-ins & history`}>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/dashboard/repairs/diagnoses"
+            className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Diagnosis prices
+          </Link>
           <GenerateRepairBillingModal repairs={paymentOptions} />
           <AddRepairPaymentModal repairs={paymentOptions} />
           <AddRepairModal options={formOptions} />

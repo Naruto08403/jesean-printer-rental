@@ -10,10 +10,12 @@ export function SearchableDataTable({
   children,
   placeholder = "Search...",
   className,
+  additionalRowFilter,
 }: {
   children: React.ReactNode;
   placeholder?: string;
   className?: string;
+  additionalRowFilter?: (row: HTMLElement) => boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
@@ -27,7 +29,9 @@ export function SearchableDataTable({
 
     root.querySelectorAll("[data-search-row]").forEach((row) => {
       const text = row.getAttribute("data-search")?.toLowerCase() ?? "";
-      const match = !q || text.includes(q);
+      const searchMatch = !q || text.includes(q);
+      const extraMatch = additionalRowFilter ? additionalRowFilter(row as HTMLElement) : true;
+      const match = searchMatch && extraMatch;
       (row as HTMLElement).style.display = match ? "" : "none";
       if (match) visible++;
     });
@@ -37,7 +41,7 @@ export function SearchableDataTable({
       const hasRows = root.querySelectorAll("[data-search-row]").length > 0;
       noMatch.style.display = hasRows && q && visible === 0 ? "" : "none";
     }
-  }, [query]);
+  }, [query, additionalRowFilter]);
 
   return (
     <div className={cn("space-y-3", className)}>

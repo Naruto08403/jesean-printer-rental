@@ -10,6 +10,7 @@ import {
   snapshotFromRepair,
 } from "@/lib/repair-device";
 import type { RepairPrinterSource, ServiceStatus } from "@prisma/client";
+import { resolveRepairDiagnosisPricing, listActiveRepairDiagnosisCatalog } from "@/actions/repair-diagnoses";
 
 function parseDate(value: string | null | undefined, label: string): Date | null {
   const raw = value?.trim();
@@ -28,6 +29,14 @@ async function printerHasActiveRental(printerId: string): Promise<boolean> {
     },
   });
   return Boolean(rental);
+}
+
+async function isRentalFleetPrinter(printerId: string): Promise<boolean> {
+  const printer = await prisma.printer.findUnique({
+    where: { id: printerId },
+    select: { type: true },
+  });
+  return printer?.type === "RENTAL";
 }
 
 async function resolveRepairDevice(formData: FormData) {
@@ -71,6 +80,9 @@ async function resolveRepairDevice(formData: FormData) {
     if (!printerId) throw new Error("Select a printer from inventory");
     const printer = await prisma.printer.findUnique({ where: { id: printerId } });
     if (!printer) throw new Error("Printer not found");
+    if (printer.type !== "RENTAL") {
+      throw new Error("Select a rental fleet printer from inventory");
+    }
     if (!isEdit || !hasFormDevice) {
       const snap = snapshotFromPrinter(printer);
       brand = snap.brand;
@@ -99,9 +111,28 @@ async function resolveRepairDevice(formData: FormData) {
       isChargeWaived = await printerHasActiveRental(resolvedPrinterId);
     }
   } else {
-    resolvedPrinterId = null;
-    if (!brand && !model && !serialNumber) {
-      throw new Error("Enter at least brand, model, or serial number for walk-in devices");
+    if (printerId) {
+      const printer = await prisma.printer.findUnique({
+        where: { id: printerId },
+        include: { ownerClient: { select: { id: true, name: true } } },
+      });
+      if (!printer || printer.type !== "WALK_IN") {
+        throw new Error("Select a registered walk-in printer");
+      }
+      resolvedPrinterId = printerId;
+      if (!isEdit || !hasFormDevice) {
+        const snap = snapshotFromPrinter(printer);
+        brand = snap.brand;
+        model = snap.model;
+        serialNumber = snap.serialNumber;
+      }
+      clientId = clientId || printer.ownerClientId;
+      customerName = customerName || printer.ownerClient?.name || null;
+    } else {
+      resolvedPrinterId = null;
+      if (!brand && !model && !serialNumber) {
+        throw new Error("Enter at least brand, model, or serial number for walk-in devices");
+      }
     }
   }
 
@@ -134,18 +165,15 @@ function parseRepairForm(formData: FormData) {
   const completedAt = parseDate(String(formData.get("completedAt") || ""), "date returned");
   const notes = String(formData.get("notes") || "").trim() || null;
 
-  let totalAmount = Number(formData.get("totalAmount"));
-  if (Number.isNaN(totalAmount) || totalAmount < 0) totalAmount = 0;
-
   const chargeWaivedFlag = formData.get("isChargeWaived") === "on" || formData.get("isChargeWaived") === "true";
 
-  return { problem, diagnosis, status, receivedAt, completedAt, notes, totalAmount, chargeWaivedFlag };
+  return { problem, diagnosis, status, receivedAt, completedAt, notes, chargeWaivedFlag };
 }
 
 export async function getRepairFormOptions() {
   await requireAdmin();
 
-  const [clients, printers, rentals, repairs] = await Promise.all([
+  const [clients, printers, rentals, repairs, diagnosisCatalog] = await Promise.all([
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.printer.findMany({
       orderBy: [{ brand: "asc" }, { model: "asc" }],
@@ -155,6 +183,9 @@ export async function getRepairFormOptions() {
         model: true,
         serialNumber: true,
         status: true,
+        type: true,
+        ownerClientId: true,
+        ownerClient: { select: { name: true } },
       },
     }),
     prisma.rental.findMany({
@@ -181,6 +212,7 @@ export async function getRepairFormOptions() {
         client: { select: { name: true } },
       },
     }),
+    listActiveRepairDiagnosisCatalog(),
   ]);
 
   const rentalPrinters = rentals
@@ -196,9 +228,24 @@ export async function getRepairFormOptions() {
       label: `${r.client.name} · ${[r.printer!.brand, r.printer!.model, r.printer!.serialNumber].filter(Boolean).join(" ")}`,
     }));
 
-  const printerOptions = printers.map((p) => ({
+  const rentalFleetPrinters = printers.filter((p) => p.type === "RENTAL");
+  const walkInPrinters = printers.filter((p) => p.type === "WALK_IN");
+
+  const printerOptions = rentalFleetPrinters.map((p) => ({
     id: p.id,
     label: [p.brand, p.model, p.serialNumber].filter(Boolean).join(" ") || "Printer",
+    status: p.status,
+    type: p.type,
+    brand: p.brand,
+    model: p.model,
+    serialNumber: p.serialNumber,
+  }));
+
+  const walkInPrinterOptions = walkInPrinters.map((p) => ({
+    id: p.id,
+    label: [p.brand, p.model, p.serialNumber].filter(Boolean).join(" ") || "Printer",
+    ownerLabel: p.ownerClient?.name ?? "—",
+    ownerClientId: p.ownerClientId,
     status: p.status,
     brand: p.brand,
     model: p.model,
@@ -215,8 +262,10 @@ export async function getRepairFormOptions() {
       ...p,
       isRentalUnit: activeRentalPrinterIds.has(p.id),
     })),
+    walkInPrinters: walkInPrinterOptions,
     rentalPrinters,
     deviceHistory,
+    diagnosisCatalog,
   };
 }
 
@@ -227,23 +276,45 @@ export async function createRepair(formData: FormData) {
   const device = await resolveRepairDevice(formData);
   const fields = parseRepairForm(formData);
 
+  let printerId = device.printerId;
+  if (device.source === "WALK_IN" && !printerId && device.clientId) {
+    const walkInPrinter = await prisma.printer.create({
+      data: {
+        type: "WALK_IN",
+        ownerClientId: device.clientId,
+        brand: device.brand,
+        model: device.model,
+        serialNumber: device.serialNumber,
+        status: "AVAILABLE",
+      },
+    });
+    printerId = walkInPrinter.id;
+    await logPrinterAudit(walkInPrinter.id, "CREATED", "Walk-in printer registered from repair", {
+      userEmail: session?.user?.email,
+      metadata: { repairSource: "WALK_IN" },
+    });
+  }
+
   const isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
-  const totalAmount = isChargeWaived ? 0 : fields.totalAmount;
+  const pricing = await resolveRepairDiagnosisPricing({
+    diagnosisRaw: fields.diagnosis,
+    chargeWaived: isChargeWaived,
+  });
 
   const repair = await prisma.repair.create({
     data: {
       clientId: device.clientId,
       customerName: device.customerName,
-      printerId: device.printerId,
+      printerId,
       source: device.source,
       linkedFromRepairId: device.linkedFromRepairId,
       brand: device.brand,
       model: device.model,
       serialNumber: device.serialNumber,
       problem: fields.problem,
-      diagnosis: fields.diagnosis,
+      diagnosis: pricing.diagnosis,
       status: fields.status,
-      totalAmount,
+      totalAmount: pricing.totalAmount,
       isChargeWaived,
       receivedAt: fields.receivedAt,
       completedAt: fields.completedAt,
@@ -252,20 +323,22 @@ export async function createRepair(formData: FormData) {
     },
   });
 
-  if (device.printerId && fields.status !== "COMPLETED" && fields.status !== "CANCELLED") {
-    await prisma.printer.update({
-      where: { id: device.printerId },
-      data: { status: "IN_REPAIR" },
-    });
-    await logPrinterAudit(device.printerId, "REPAIR_LINKED", `Repair opened: ${fields.problem}`, {
-      userEmail: session?.user?.email,
-      metadata: { repairId: repair.id },
-    });
+  if (printerId && fields.status !== "COMPLETED" && fields.status !== "CANCELLED") {
+    if (await isRentalFleetPrinter(printerId)) {
+      await prisma.printer.update({
+        where: { id: printerId },
+        data: { status: "IN_REPAIR" },
+      });
+      await logPrinterAudit(printerId, "REPAIR_LINKED", `Repair opened: ${fields.problem}`, {
+        userEmail: session?.user?.email,
+        metadata: { repairId: repair.id },
+      });
+    }
   }
 
   revalidatePath("/dashboard/repairs");
   revalidatePath("/dashboard/printers");
-  if (device.printerId) revalidatePath(`/dashboard/printers/${device.printerId}`);
+  if (printerId) revalidatePath(`/dashboard/printers/${printerId}`);
 
   return { id: repair.id };
 }
@@ -281,7 +354,10 @@ export async function updateRepair(id: string, formData: FormData) {
   const fields = parseRepairForm(formData);
 
   const isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
-  const totalAmount = isChargeWaived ? 0 : fields.totalAmount;
+  const pricing = await resolveRepairDiagnosisPricing({
+    diagnosisRaw: fields.diagnosis,
+    chargeWaived: isChargeWaived,
+  });
 
   const repair = await prisma.repair.update({
     where: { id },
@@ -295,9 +371,9 @@ export async function updateRepair(id: string, formData: FormData) {
       model: device.model,
       serialNumber: device.serialNumber,
       problem: fields.problem,
-      diagnosis: fields.diagnosis,
+      diagnosis: pricing.diagnosis,
       status: fields.status,
-      totalAmount,
+      totalAmount: pricing.totalAmount,
       isChargeWaived,
       receivedAt: fields.receivedAt,
       completedAt: fields.completedAt,
@@ -308,25 +384,28 @@ export async function updateRepair(id: string, formData: FormData) {
   });
 
   if (repair.printerId) {
-    if (fields.status === "COMPLETED" || fields.status === "CANCELLED") {
-      const activeRental = await prisma.rental.findFirst({
-        where: { printerId: repair.printerId, status: { in: ["ACTIVE", "PAUSED"] } },
-      });
-      await prisma.printer.update({
-        where: { id: repair.printerId },
-        data: { status: activeRental ? "RENTED" : "AVAILABLE" },
-      });
-      if (fields.status === "COMPLETED") {
-        await logPrinterAudit(repair.printerId, "STATUS_CHANGED", "Repair completed", {
-          userEmail: session?.user?.email,
-          metadata: { repairId: id },
+    const fleet = await isRentalFleetPrinter(repair.printerId);
+    if (fleet) {
+      if (fields.status === "COMPLETED" || fields.status === "CANCELLED") {
+        const activeRental = await prisma.rental.findFirst({
+          where: { printerId: repair.printerId, status: { in: ["ACTIVE", "PAUSED"] } },
+        });
+        await prisma.printer.update({
+          where: { id: repair.printerId },
+          data: { status: activeRental ? "RENTED" : "AVAILABLE" },
+        });
+        if (fields.status === "COMPLETED") {
+          await logPrinterAudit(repair.printerId, "STATUS_CHANGED", "Repair completed", {
+            userEmail: session?.user?.email,
+            metadata: { repairId: id },
+          });
+        }
+      } else {
+        await prisma.printer.update({
+          where: { id: repair.printerId },
+          data: { status: "IN_REPAIR" },
         });
       }
-    } else {
-      await prisma.printer.update({
-        where: { id: repair.printerId },
-        data: { status: "IN_REPAIR" },
-      });
     }
   }
 
@@ -348,7 +427,7 @@ export async function updateRepairStatus(id: string, status: ServiceStatus) {
     include: { printer: true },
   });
 
-  if (repair.printerId && status === "COMPLETED") {
+  if (repair.printerId && status === "COMPLETED" && (await isRentalFleetPrinter(repair.printerId))) {
     const activeRental = await prisma.rental.findFirst({
       where: { printerId: repair.printerId, status: "ACTIVE" },
     });
@@ -366,6 +445,53 @@ export async function updateRepairStatus(id: string, status: ServiceStatus) {
 
   revalidatePath(`/dashboard/repairs/${id}`);
   revalidatePath("/dashboard/repairs");
+}
+
+export async function deleteRepair(id: string) {
+  await requireAdmin();
+  const session = await auth();
+
+  const repair = await prisma.repair.findUnique({
+    where: { id },
+    include: { payments: { select: { id: true } } },
+  });
+  if (!repair) throw new Error("Repair not found");
+
+  if (repair.printerId && (await isRentalFleetPrinter(repair.printerId))) {
+    const isOpen = repair.status !== "COMPLETED" && repair.status !== "CANCELLED";
+    if (isOpen) {
+      const otherOpenRepair = await prisma.repair.findFirst({
+        where: {
+          printerId: repair.printerId,
+          id: { not: id },
+          status: { notIn: ["COMPLETED", "CANCELLED"] },
+        },
+      });
+      if (!otherOpenRepair) {
+        const activeRental = await prisma.rental.findFirst({
+          where: {
+            printerId: repair.printerId,
+            status: { in: ["ACTIVE", "PAUSED"] },
+          },
+        });
+        await prisma.printer.update({
+          where: { id: repair.printerId },
+          data: { status: activeRental ? "RENTED" : "AVAILABLE" },
+        });
+        await logPrinterAudit(repair.printerId, "STATUS_CHANGED", "Repair record deleted", {
+          userEmail: session?.user?.email,
+          metadata: { repairId: id },
+        });
+      }
+    }
+  }
+
+  await prisma.repair.delete({ where: { id } });
+
+  revalidatePath("/dashboard/repairs");
+  revalidatePath(`/dashboard/repairs/${id}`);
+  revalidatePath("/dashboard/printers");
+  if (repair.printerId) revalidatePath(`/dashboard/printers/${repair.printerId}`);
 }
 
 export async function getRepairDeviceTimeline(serialNumber: string | null, brand: string | null, model: string | null) {

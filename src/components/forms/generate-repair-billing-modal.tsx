@@ -100,7 +100,7 @@ export function GenerateRepairBillingModal({
         const blob = await res.blob();
         const disposition = res.headers.get("Content-Disposition");
         const match = disposition?.match(/filename="([^"]+)"/);
-        const filename = match?.[1] ?? "repair-billing.xlsx";
+        const filename = match?.[1] ?? "repair-billing.pdf";
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -120,7 +120,7 @@ export function GenerateRepairBillingModal({
       {pending && (
         <LoadingOverlay
           message="Generating repair billing…"
-          submessage="Preparing your Excel file."
+          submessage="Preparing your PDF file."
         />
       )}
       <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
@@ -138,8 +138,8 @@ export function GenerateRepairBillingModal({
       >
         <form onSubmit={handleSubmit} className="space-y-4 text-slate-900">
           <p className="text-sm text-slate-600">
-            Excel statement with line items per repair job — device, problem, amount, paid, and
-            balance.
+            Uses the repair billing PDF template — fixed header, flexible table rows (one diagnosis
+            per row), and signatures placed below the table.
           </p>
 
           {repairs.length === 0 ? (
@@ -232,7 +232,7 @@ export function GenerateRepairBillingModal({
                   Cancel
                 </Button>
                 <Button type="submit" loading={pending} disabled={selectedIds.length === 0}>
-                  {pending ? "Generating…" : "Download Excel"}
+                  {pending ? "Generating…" : "Download PDF"}
                 </Button>
               </div>
             </>

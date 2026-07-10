@@ -3,12 +3,11 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import { DataTableElement } from "@/components/data-table";
-import {
-  SearchableDataTable,
-  SearchNoMatchRow,
-} from "@/components/searchable-data-table";
+import { SearchNoMatchRow } from "@/components/searchable-data-table";
+import { PrintersDataTable } from "@/components/printers-data-table";
 import { toSearchText } from "@/lib/search";
 import { formatCurrency } from "@/lib/utils";
+import { formatPrinterOwnerLabel, printerTypeLabel } from "@/lib/printer";
 import { AddPrinterModal } from "@/components/forms/add-printer-modal";
 import { ImportPrintersModal } from "@/components/forms/import-printers-modal";
 
@@ -19,27 +18,44 @@ const statusColor: Record<string, "green" | "amber" | "blue" | "slate"> = {
   RETIRED: "slate",
 };
 
+const typeColor: Record<string, "blue" | "amber"> = {
+  RENTAL: "blue",
+  WALK_IN: "amber",
+};
+
 export default async function PrintersPage() {
-  const printers = await prisma.printer.findMany({
-    orderBy: { updatedAt: "desc" },
-    include: {
-      _count: { select: { rentals: true, repairs: true } },
-    },
-  });
+  const [printers, clients] = await Promise.all([
+    prisma.printer.findMany({
+      orderBy: { updatedAt: "desc" },
+      include: {
+        ownerClient: { select: { name: true } },
+        _count: { select: { rentals: true, repairs: true } },
+      },
+    }),
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
+
+  const rentalCount = printers.filter((p) => p.type === "RENTAL").length;
+  const walkInCount = printers.filter((p) => p.type === "WALK_IN").length;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Printers" subtitle={`${printers.length} in inventory`}>
+      <PageHeader
+        title="Printers"
+        subtitle={`${printers.length} total · ${rentalCount} rental · ${walkInCount} walk-in`}
+      >
         <ImportPrintersModal />
-        <AddPrinterModal />
+        <AddPrinterModal clients={clients} />
       </PageHeader>
 
-      <SearchableDataTable placeholder="Search printers by brand, model, serial, status...">
+      <PrintersDataTable placeholder="Search printers by brand, model, serial, owner, status...">
         <DataTableElement>
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
               <th className="px-4 py-3 font-medium">Unit</th>
               <th className="px-4 py-3 font-medium">Serial</th>
+              <th className="px-4 py-3 font-medium">Type</th>
+              <th className="px-4 py-3 font-medium">Owner</th>
               <th className="px-4 py-3 font-medium">Price</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Rentals</th>
@@ -50,20 +66,25 @@ export default async function PrintersPage() {
           <tbody>
             {printers.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                   No printers yet.
                 </td>
               </tr>
             )}
             {printers.map((p) => {
               const unit = [p.brand, p.model].filter(Boolean).join(" ") || "Printer";
+              const owner = formatPrinterOwnerLabel(p);
               return (
                 <tr
                   key={p.id}
                   data-search-row
+                  data-printer-type={p.type}
                   data-search={toSearchText(
                     unit,
                     p.serialNumber,
+                    p.type,
+                    printerTypeLabel(p.type),
+                    owner,
                     p.price,
                     p.status,
                     p._count.rentals,
@@ -73,6 +94,10 @@ export default async function PrintersPage() {
                 >
                   <td className="px-4 py-3 font-medium">{unit}</td>
                   <td className="px-4 py-3 text-slate-600">{p.serialNumber ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <Badge color={typeColor[p.type]}>{printerTypeLabel(p.type)}</Badge>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{owner}</td>
                   <td className="px-4 py-3 text-slate-600">
                     {p.price != null ? formatCurrency(p.price) : "—"}
                   </td>
@@ -92,10 +117,10 @@ export default async function PrintersPage() {
                 </tr>
               );
             })}
-            <SearchNoMatchRow colSpan={7} />
+            <SearchNoMatchRow colSpan={9} />
           </tbody>
         </DataTableElement>
-      </SearchableDataTable>
+      </PrintersDataTable>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Card, CardTitle } from "@/components/ui/card";
 import { getRepairDeviceTimeline, getRepairFormOptions } from "@/actions/repairs";
 import { EditRepairJobForm } from "@/components/forms/edit-repair-job-form";
+import { DeleteRepairButton } from "@/components/forms/delete-repair-button";
 import { PaymentForm } from "@/components/payment-form";
 import { PaymentStatus } from "@/components/payment-status";
 import { RepairDeviceHistory } from "@/components/repair-device-history";
@@ -60,7 +61,7 @@ export default async function RepairDetailPage({
             {formatRepairPrinterLabel(repair)} · {formatRepairCustomerLabel(repair)}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge color="slate">{sourceLabel(repair.source)}</Badge>
           {repair.isChargeWaived && <Badge color="green">No charge</Badge>}
           <Badge
@@ -74,6 +75,10 @@ export default async function RepairDetailPage({
           >
             {repair.status.replace("_", " ")}
           </Badge>
+          <DeleteRepairButton
+            repairId={repair.id}
+            paymentCount={repair.payments.length}
+          />
         </div>
       </div>
 

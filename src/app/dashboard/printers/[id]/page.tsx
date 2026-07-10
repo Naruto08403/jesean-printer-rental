@@ -5,11 +5,17 @@ import { updatePrinter, addPrinterNote } from "@/actions/printers";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton, FormLoadingOverlay } from "@/components/submit-button";
-import { Select } from "@/components/ui/select";
+import { EditPrinterForm } from "@/components/forms/edit-printer-form";
 import Link from "next/link";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
 import { formatRepairCustomerLabel, repairDisplayTitle } from "@/lib/repair-device";
+import { formatPrinterOwnerLabel, printerTypeLabel } from "@/lib/printer";
 import { Badge } from "@/components/ui/badge";
+
+const typeColor: Record<string, "blue" | "amber"> = {
+  RENTAL: "blue",
+  WALK_IN: "amber",
+};
 
 export default async function PrinterDetailPage({
   params,
@@ -17,20 +23,24 @@ export default async function PrinterDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const printer = await prisma.printer.findUnique({
-    where: { id },
-    include: {
-      rentals: {
-        orderBy: { startDate: "desc" },
-        include: { client: true },
+  const [printer, clients] = await Promise.all([
+    prisma.printer.findUnique({
+      where: { id },
+      include: {
+        ownerClient: { select: { name: true } },
+        rentals: {
+          orderBy: { startDate: "desc" },
+          include: { client: true },
+        },
+        repairs: {
+          orderBy: { createdAt: "desc" },
+          include: { client: true },
+        },
+        auditLogs: { orderBy: { createdAt: "desc" }, take: 50 },
       },
-      repairs: {
-        orderBy: { createdAt: "desc" },
-        include: { client: true },
-      },
-      auditLogs: { orderBy: { createdAt: "desc" }, take: 50 },
-    },
-  });
+    }),
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
   if (!printer) notFound();
 
   const update = updatePrinter.bind(null, id);
@@ -44,54 +54,21 @@ export default async function PrinterDetailPage({
       <Link href="/dashboard/printers" className="text-sm text-brand-600 hover:underline">
         ← Printers
       </Link>
-      <h1 className="text-2xl font-bold">
-        {[printer.brand, printer.model].filter(Boolean).join(" ") || "Printer"}
-      </h1>
-      <Badge>{printer.status}</Badge>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-bold">
+          {[printer.brand, printer.model].filter(Boolean).join(" ") || "Printer"}
+        </h1>
+        <Badge color={typeColor[printer.type]}>{printerTypeLabel(printer.type)}</Badge>
+        <Badge>{printer.status}</Badge>
+      </div>
+      <p className="text-sm text-slate-600">
+        Owner: <strong>{formatPrinterOwnerLabel(printer)}</strong>
+      </p>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardTitle>Edit</CardTitle>
-          <form action={update} className="mt-4 space-y-3">
-            <div>
-              <Label>Serial</Label>
-              <Input name="serialNumber" defaultValue={printer.serialNumber ?? ""} />
-            </div>
-            <div>
-              <Label>Brand</Label>
-              <Input name="brand" defaultValue={printer.brand ?? ""} />
-            </div>
-            <div>
-              <Label>Model</Label>
-              <Input name="model" defaultValue={printer.model ?? ""} />
-            </div>
-            <div>
-              <Label>Price (PHP)</Label>
-              <Input
-                name="price"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={printer.price ?? ""}
-              />
-              {printer.price != null && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Current: {formatCurrency(printer.price)}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label>Status</Label>
-              <Select name="status" defaultValue={printer.status}>
-                <option value="AVAILABLE">Available</option>
-                <option value="RENTED">Rented</option>
-                <option value="IN_REPAIR">In repair</option>
-                <option value="RETIRED">Retired</option>
-              </Select>
-            </div>
-            <SubmitButton loadingText="Saving…">Save</SubmitButton>
-            <FormLoadingOverlay message="Saving printer…" />
-          </form>
+          <EditPrinterForm printer={printer} clients={clients} action={update} />
         </Card>
 
         <Card>
@@ -135,6 +112,9 @@ export default async function PrinterDetailPage({
                 </span>
               </li>
             ))}
+            {printer.repairs.length === 0 && (
+              <li className="text-slate-500">No repairs yet</li>
+            )}
           </ul>
         </Card>
       </div>

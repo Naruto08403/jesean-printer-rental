@@ -4,29 +4,66 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, auth } from "@/lib/auth";
 import { logPrinterAudit } from "@/lib/audit";
-import type { PrinterStatus } from "@prisma/client";
+import { parsePrinterTypeInput } from "@/lib/printer";
+import type { PrinterStatus, PrinterType } from "@prisma/client";
 import Papa from "papaparse";
 
-export async function createPrinter(formData: FormData) {
-  await requireAdmin();
-  const session = await auth();
+function parsePrinterOwner(type: PrinterType, ownerClientIdRaw: string | null) {
+  if (type === "RENTAL") return null;
+  const ownerClientId = ownerClientIdRaw?.trim() || null;
+  if (!ownerClientId) {
+    throw new Error("Select an owner client for walk-in printers");
+  }
+  return ownerClientId;
+}
+
+function parsePrinterFormFields(formData: FormData) {
   const serialNumber = String(formData.get("serialNumber") || "").trim() || null;
   const brand = String(formData.get("brand") || "").trim() || null;
   const model = String(formData.get("model") || "").trim() || null;
   const priceRaw = String(formData.get("price") || "").trim();
   const price = priceRaw ? Number(priceRaw) : null;
   const notes = String(formData.get("notes") || "").trim() || null;
+  const type = parsePrinterTypeInput(String(formData.get("type") || ""));
+  const ownerClientId = parsePrinterOwner(
+    type,
+    String(formData.get("ownerClientId") || "")
+  );
+
   if (price != null && (!Number.isFinite(price) || price < 0)) {
     throw new Error("Invalid price");
   }
 
+  return { serialNumber, brand, model, price, notes, type, ownerClientId };
+}
+
+export async function createPrinter(formData: FormData) {
+  await requireAdmin();
+  const session = await auth();
+  const data = parsePrinterFormFields(formData);
+
   const printer = await prisma.printer.create({
-    data: { serialNumber, brand, model, price, notes },
+    data: {
+      serialNumber: data.serialNumber,
+      brand: data.brand,
+      model: data.model,
+      price: data.price,
+      notes: data.notes,
+      type: data.type,
+      ownerClientId: data.ownerClientId,
+    },
   });
 
   await logPrinterAudit(printer.id, "CREATED", "Printer added to inventory", {
     userEmail: session?.user?.email,
-    metadata: { serialNumber, brand, model, price },
+    metadata: {
+      serialNumber: data.serialNumber,
+      brand: data.brand,
+      model: data.model,
+      price: data.price,
+      type: data.type,
+      ownerClientId: data.ownerClientId,
+    },
   });
 
   revalidatePath("/dashboard/printers");
@@ -36,17 +73,16 @@ export async function updatePrinter(id: string, formData: FormData) {
   await requireAdmin();
   const session = await auth();
   const status = formData.get("status") as PrinterStatus;
-  const priceRaw = String(formData.get("price") || "").trim();
-  const price = priceRaw ? Number(priceRaw) : null;
-  if (price != null && (!Number.isFinite(price) || price < 0)) {
-    throw new Error("Invalid price");
-  }
+  const fields = parsePrinterFormFields(formData);
+
   const data = {
-    serialNumber: String(formData.get("serialNumber") || "").trim() || null,
-    brand: String(formData.get("brand") || "").trim() || null,
-    model: String(formData.get("model") || "").trim() || null,
-    price,
-    notes: String(formData.get("notes") || "").trim() || null,
+    serialNumber: fields.serialNumber,
+    brand: fields.brand,
+    model: fields.model,
+    price: fields.price,
+    notes: fields.notes,
+    type: fields.type,
+    ownerClientId: fields.ownerClientId,
     status,
   };
 
@@ -102,22 +138,37 @@ export async function importPrintersFromCsv(csvText: string) {
       ? parsedPrice
       : null;
 
+    const typeRaw = row.type?.trim().toLowerCase() || row.printer_type?.trim().toLowerCase();
+    const type: PrinterType =
+      typeRaw === "walk_in" || typeRaw === "walkin" || typeRaw === "walk-in"
+        ? "WALK_IN"
+        : "RENTAL";
+
+    let ownerClientId: string | null = null;
+    if (type === "WALK_IN" && row.client_name?.trim()) {
+      const client = await prisma.client.findFirst({
+        where: { name: { equals: row.client_name.trim(), mode: "insensitive" } },
+        select: { id: true },
+      });
+      ownerClientId = client?.id ?? null;
+    }
+
     const printer = await prisma.printer.create({
       data: {
         serialNumber,
         brand: row.brand?.trim() || null,
         model: row.model?.trim() || null,
         price,
-        notes: [row.notes?.trim(), row.client_name?.trim() && `Client: ${row.client_name.trim()}`]
-          .filter(Boolean)
-          .join(" · ") || null,
+        notes: row.notes?.trim() || null,
         status: printerStatus,
+        type,
+        ownerClientId,
       },
     });
 
     await logPrinterAudit(printer.id, "CREATED", "Imported from CSV", {
       userEmail: session?.user?.email ?? undefined,
-      metadata: { serialNumber, client: row.client_name },
+      metadata: { serialNumber, client: row.client_name, type },
     });
     created++;
   }
@@ -135,4 +186,12 @@ export async function addPrinterNote(printerId: string, note: string) {
     userEmail: session?.user?.email,
   });
   revalidatePath(`/dashboard/printers/${printerId}`);
+}
+
+export async function getPrinterFormClients() {
+  await requireAdmin();
+  return prisma.client.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 }
