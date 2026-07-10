@@ -118,7 +118,7 @@ export async function GET(request: Request) {
     totalUnits += row.unitCount;
     grandTotal += row.yearPaid;
 
-    const excelRow: Record<string, any> = {
+    const excelRow: Record<string, unknown> = {
       client: row.clientName,
       units: row.unitCount,
       total: peso(row.yearPaid),
