@@ -27,7 +27,7 @@ function toDateInput(d: Date | null | undefined) {
 export default async function RepairsPage() {
   const [repairs, formOptions, paymentOptions] = await Promise.all([
     prisma.repair.findMany({
-      orderBy: { receivedAt: "desc" },
+      orderBy: { customerName: "asc" },
       include: { client: true, printer: true, payments: true },
     }),
     getRepairFormOptions(),

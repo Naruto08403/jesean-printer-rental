@@ -181,6 +181,7 @@ function addPriceField(
     width,
     height,
     borderWidth: 0,
+    textColor: rgb(0, 0, 0),
   });
 
   field.setFontSize(8);
