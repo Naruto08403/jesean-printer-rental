@@ -20,6 +20,8 @@ export type RepairBillingRepairRecord = {
   problem: string;
   diagnosis?: string | null;
   totalAmount: number;
+  pricingMode?: "CATALOG" | "GENERAL";
+  diagnosisLines?: { name: string; price: number }[];
   printer?: { brand: string | null; model: string | null; serialNumber: string | null } | null;
 };
 
@@ -141,12 +143,22 @@ export function buildBillingStatementLineItems(
   });
 }
 
-/** Job order: one row per diagnosis with individual catalog prices. */
+/** Job order: one row per diagnosis using saved line prices when available. */
 export function buildJobOrderLineItems(
   repairs: RepairBillingRepairRecord[],
   catalog: DiagnosisPriceEntry[] = []
 ): RepairTemplateLineItem[] {
   return repairs.flatMap((repair) => {
+    if (repair.diagnosisLines && repair.diagnosisLines.length > 0) {
+      return repair.diagnosisLines.map((row, index) => ({
+        unitLabel: index === 0 ? formatRepairUnitLabel(repair) : "",
+        description: row.name.toUpperCase(),
+        amount: row.price,
+        isPrimary: index === 0,
+        repairId: repair.id,
+      }));
+    }
+
     const diagnoses = parseDiagnosisItems(repair.diagnosis, repairDisplayTitle(repair));
     const priced = resolveJobOrderDiagnosisPrices(diagnoses, repair.totalAmount, catalog);
 

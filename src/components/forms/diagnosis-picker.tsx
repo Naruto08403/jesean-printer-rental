@@ -13,11 +13,13 @@ export function DiagnosisPicker({
   selectedNames,
   onChange,
   disabled = false,
+  showPrices = true,
 }: {
   catalog: DiagnosisCatalogEntry[];
   selectedNames: string[];
   onChange: (names: string[]) => void;
   disabled?: boolean;
+  showPrices?: boolean;
 }) {
   const normalizedSelected = useMemo(
     () => new Set(selectedNames.map((name) => name.trim().toLowerCase())),
@@ -71,13 +73,24 @@ export function DiagnosisPicker({
                 />
                 <span className="font-medium text-slate-900">{item.name}</span>
               </span>
-              <span className="text-slate-600">{formatCurrency(item.price)}</span>
+              {showPrices && (
+                <span className="text-slate-600">{formatCurrency(item.price)}</span>
+              )}
             </label>
           );
         })}
       </div>
       <p className="text-sm text-slate-600">
-        Selected total: <strong>{formatCurrency(total)}</strong>
+        {showPrices ? (
+          <>
+            Selected total: <strong>{formatCurrency(total)}</strong>
+          </>
+        ) : (
+          <>
+            Selected: <strong>{selectedNames.length}</strong> item
+            {selectedNames.length === 1 ? "" : "s"}
+          </>
+        )}
       </p>
       <input type="hidden" name="diagnosis" value={formatDiagnosisString(selectedNames)} />
     </div>

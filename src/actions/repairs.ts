@@ -9,8 +9,9 @@ import {
   snapshotFromPrinter,
   snapshotFromRepair,
 } from "@/lib/repair-device";
-import type { RepairPrinterSource, ServiceStatus } from "@prisma/client";
-import { resolveRepairDiagnosisPricing, listActiveRepairDiagnosisCatalog } from "@/actions/repair-diagnoses";
+import type { RepairPrinterSource, ServiceStatus, RepairPricingMode } from "@prisma/client";
+import { resolveRepairPricing } from "@/lib/repair-pricing";
+import { listActiveRepairDiagnosisCatalog } from "@/actions/repair-diagnoses";
 
 function parseDate(value: string | null | undefined, label: string): Date | null {
   const raw = value?.trim();
@@ -166,8 +167,39 @@ function parseRepairForm(formData: FormData) {
   const notes = String(formData.get("notes") || "").trim() || null;
 
   const chargeWaivedFlag = formData.get("isChargeWaived") === "on" || formData.get("isChargeWaived") === "true";
+  const pricingMode = (String(formData.get("pricingMode") || "CATALOG") === "GENERAL"
+    ? "GENERAL"
+    : "CATALOG") as RepairPricingMode;
+  const generalPriceRaw = String(formData.get("generalPrice") || "").trim();
+  const generalPrice = generalPriceRaw ? Number(generalPriceRaw) : null;
 
-  return { problem, diagnosis, status, receivedAt, completedAt, notes, chargeWaivedFlag };
+  return {
+    problem,
+    diagnosis,
+    status,
+    receivedAt,
+    completedAt,
+    notes,
+    chargeWaivedFlag,
+    pricingMode,
+    generalPrice,
+  };
+}
+
+async function replaceRepairDiagnosisLines(
+  repairId: string,
+  lines: { name: string; price: number }[]
+) {
+  await prisma.repairDiagnosisLine.deleteMany({ where: { repairId } });
+  if (lines.length === 0) return;
+  await prisma.repairDiagnosisLine.createMany({
+    data: lines.map((line, index) => ({
+      repairId,
+      name: line.name,
+      price: line.price,
+      sortOrder: index,
+    })),
+  });
 }
 
 export async function getRepairFormOptions() {
@@ -296,9 +328,11 @@ export async function createRepair(formData: FormData) {
   }
 
   const isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
-  const pricing = await resolveRepairDiagnosisPricing({
+  const pricing = await resolveRepairPricing({
     diagnosisRaw: fields.diagnosis,
     chargeWaived: isChargeWaived,
+    pricingMode: fields.pricingMode,
+    generalPrice: fields.generalPrice,
   });
 
   const repair = await prisma.repair.create({
@@ -313,6 +347,7 @@ export async function createRepair(formData: FormData) {
       serialNumber: device.serialNumber,
       problem: fields.problem,
       diagnosis: pricing.diagnosis,
+      pricingMode: pricing.pricingMode,
       status: fields.status,
       totalAmount: pricing.totalAmount,
       isChargeWaived,
@@ -322,6 +357,8 @@ export async function createRepair(formData: FormData) {
       description: fields.notes,
     },
   });
+
+  await replaceRepairDiagnosisLines(repair.id, pricing.lines);
 
   if (printerId && fields.status !== "COMPLETED" && fields.status !== "CANCELLED") {
     if (await isRentalFleetPrinter(printerId)) {
@@ -354,9 +391,11 @@ export async function updateRepair(id: string, formData: FormData) {
   const fields = parseRepairForm(formData);
 
   const isChargeWaived = device.isChargeWaived || fields.chargeWaivedFlag;
-  const pricing = await resolveRepairDiagnosisPricing({
+  const pricing = await resolveRepairPricing({
     diagnosisRaw: fields.diagnosis,
     chargeWaived: isChargeWaived,
+    pricingMode: fields.pricingMode,
+    generalPrice: fields.generalPrice,
   });
 
   const repair = await prisma.repair.update({
@@ -372,6 +411,7 @@ export async function updateRepair(id: string, formData: FormData) {
       serialNumber: device.serialNumber,
       problem: fields.problem,
       diagnosis: pricing.diagnosis,
+      pricingMode: pricing.pricingMode,
       status: fields.status,
       totalAmount: pricing.totalAmount,
       isChargeWaived,
@@ -382,6 +422,8 @@ export async function updateRepair(id: string, formData: FormData) {
     },
     include: { printer: true },
   });
+
+  await replaceRepairDiagnosisLines(repair.id, pricing.lines);
 
   if (repair.printerId) {
     const fleet = await isRentalFleetPrinter(repair.printerId);

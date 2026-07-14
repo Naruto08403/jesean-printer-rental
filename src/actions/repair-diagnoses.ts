@@ -33,7 +33,7 @@ export async function listRepairDiagnosisOptions(includeInactive = false) {
 
   return prisma.repairDiagnosisOption.findMany({
     where: includeInactive ? undefined : { isActive: true },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    orderBy: { name: "asc" },
   });
 }
 
@@ -41,7 +41,7 @@ export async function listActiveRepairDiagnosisCatalog() {
   await ensureDefaultRepairDiagnoses();
   const rows = await prisma.repairDiagnosisOption.findMany({
     where: { isActive: true },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    orderBy: { name: "asc" },
     select: { id: true, name: true, price: true },
   });
   return rows;

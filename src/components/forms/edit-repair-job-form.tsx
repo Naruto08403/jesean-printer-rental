@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { RepairPrinterSource, ServiceStatus } from "@prisma/client";
+import type { RepairPricingMode, RepairPrinterSource, ServiceStatus } from "@prisma/client";
 import { updateRepair } from "@/actions/repairs";
 import type { getRepairFormOptions } from "@/actions/repairs";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { DiagnosisPicker, useDiagnosisSelection } from "@/components/forms/diagnosis-picker";
 import { parseDiagnosisString } from "@/lib/repair-diagnosis-catalog";
+import { sumDiagnosisLinePrices } from "@/lib/repair-pricing";
 import { sourceLabel } from "@/lib/repair-device";
 import { formatCurrency } from "@/lib/utils";
 
@@ -30,6 +31,8 @@ export type RepairEdit = {
   serialNumber: string | null;
   problem: string;
   diagnosis: string | null;
+  pricingMode: RepairPricingMode;
+  diagnosisLines: { name: string; price: number }[];
   status: ServiceStatus;
   totalAmount: number;
   isChargeWaived: boolean;
@@ -58,7 +61,19 @@ export function EditRepairJobForm({
   const [model, setModel] = useState(repair.model ?? "");
   const [serialNumber, setSerialNumber] = useState(repair.serialNumber ?? "");
   const [chargeWaived, setChargeWaived] = useState(repair.isChargeWaived);
+  const [pricingMode, setPricingMode] = useState<RepairPricingMode>(repair.pricingMode);
+  const [generalPrice, setGeneralPrice] = useState(
+    repair.pricingMode === "GENERAL" ? String(repair.totalAmount) : ""
+  );
+
   const initialDiagnosis = useMemo(() => {
+    if (repair.diagnosisLines.length > 0) {
+      return {
+        matched: repair.diagnosisLines.map((line) => line.name),
+        unknown: [] as string[],
+      };
+    }
+
     const parsed = parseDiagnosisString(repair.diagnosis);
     const byName = new Map(
       options.diagnosisCatalog.map((entry) => [entry.name.trim().toLowerCase(), entry.name])
@@ -71,17 +86,22 @@ export function EditRepairJobForm({
       else unknown.push(name);
     }
     return { matched, unknown };
-  }, [repair.diagnosis, options.diagnosisCatalog]);
+  }, [repair.diagnosis, repair.diagnosisLines, options.diagnosisCatalog]);
 
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>(initialDiagnosis.matched);
   const legacyDiagnoses = initialDiagnosis.unknown;
 
   const autoWaive = repair.source === "RENTAL";
   const isWaived = chargeWaived || autoWaive;
-  const { total: diagnosisTotal } = useDiagnosisSelection(
+  const { total: catalogPreviewTotal } = useDiagnosisSelection(
     options.diagnosisCatalog,
     selectedDiagnoses
   );
+  const savedLineTotal = sumDiagnosisLinePrices(repair.diagnosisLines);
+  const displayTotal =
+    pricingMode === "GENERAL"
+      ? Math.max(0, Number(generalPrice) || 0)
+      : catalogPreviewTotal;
 
   useEffect(() => {
     if (repair.source !== "RENTAL" || !rentalId) return;
@@ -126,6 +146,10 @@ export function EditRepairJobForm({
           fd.set("brand", brand);
           fd.set("model", model);
           fd.set("serialNumber", serialNumber);
+          fd.set("pricingMode", pricingMode);
+          if (pricingMode === "GENERAL") {
+            fd.set("generalPrice", generalPrice || "0");
+          }
           if (isWaived) {
             fd.set("isChargeWaived", "true");
           }
@@ -265,6 +289,7 @@ export function EditRepairJobForm({
           catalog={options.diagnosisCatalog}
           selectedNames={selectedDiagnoses}
           onChange={setSelectedDiagnoses}
+          showPrices={pricingMode === "CATALOG"}
         />
         {legacyDiagnoses.length > 0 && (
           <p className="mt-2 text-xs text-amber-700">
@@ -272,7 +297,39 @@ export function EditRepairJobForm({
             prices or clear the selection before saving.
           </p>
         )}
+        {repair.diagnosisLines.length > 0 && pricingMode === "CATALOG" && (
+          <p className="mt-2 text-xs text-slate-500">
+            Saved on this repair: {formatCurrency(savedLineTotal)}. Saving will refresh prices from
+            the current catalog.
+          </p>
+        )}
       </div>
+
+      {!isWaived && (
+        <div className="sm:col-span-2">
+          <Label>Pricing</Label>
+          <div className="mt-1 space-y-2 rounded-lg border border-slate-200 p-3">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="radio"
+                name="pricingMode"
+                checked={pricingMode === "CATALOG"}
+                onChange={() => setPricingMode("CATALOG")}
+              />
+              Use diagnosis price list
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="radio"
+                name="pricingMode"
+                checked={pricingMode === "GENERAL"}
+                onChange={() => setPricingMode("GENERAL")}
+              />
+              General price
+            </label>
+          </div>
+        </div>
+      )}
 
       <div>
         <Label>Status</Label>
@@ -285,14 +342,29 @@ export function EditRepairJobForm({
       </div>
       <div>
         <Label>Price (PHP)</Label>
-        <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-          {isWaived ? (
-            <span className="font-medium text-emerald-700">No charge</span>
-          ) : (
-            <span className="font-medium text-slate-900">{formatCurrency(diagnosisTotal)}</span>
-          )}
-        </div>
-        <p className="mt-1 text-xs text-slate-500">Calculated from selected diagnosis prices.</p>
+        {pricingMode === "GENERAL" && !isWaived ? (
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={generalPrice}
+            onChange={(e) => setGeneralPrice(e.target.value)}
+            className="mt-1"
+          />
+        ) : (
+          <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            {isWaived ? (
+              <span className="font-medium text-emerald-700">No charge</span>
+            ) : (
+              <span className="font-medium text-slate-900">{formatCurrency(displayTotal)}</span>
+            )}
+          </div>
+        )}
+        <p className="mt-1 text-xs text-slate-500">
+          {pricingMode === "GENERAL"
+            ? "One total for all selected diagnoses."
+            : "Recalculated from catalog when you save."}
+        </p>
         {!autoWaive && (
           <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
             <input

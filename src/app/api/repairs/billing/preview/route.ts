@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { listActiveRepairDiagnosisCatalog } from "@/actions/repair-diagnoses";
 import { buildRepairBillingPreview } from "@/lib/repair-billing-lines";
+import { toRepairBillingRecord } from "@/lib/repair-billing-record";
 import { repairCustomerDisplayName } from "@/lib/repair-billing";
 
 async function loadBillableRepairs(clientId: string | null, repairIds: string[]) {
@@ -17,7 +18,12 @@ async function loadBillableRepairs(clientId: string | null, repairIds: string[])
           ? { clientId }
           : {}),
     },
-    include: { payments: true, client: true, printer: true },
+    include: {
+      payments: true,
+      client: true,
+      printer: true,
+      diagnosisLines: { orderBy: { sortOrder: "asc" } },
+    },
     orderBy: { receivedAt: "asc" },
   });
 
@@ -50,16 +56,7 @@ export async function POST(request: Request) {
     const clientName = repairs[0].client?.name ?? repairCustomerDisplayName(repairs[0]);
     const catalog = await listActiveRepairDiagnosisCatalog();
 
-    const repairRecords = repairs.map((r) => ({
-      id: r.id,
-      brand: r.brand,
-      model: r.model,
-      serialNumber: r.serialNumber,
-      problem: r.problem,
-      diagnosis: r.diagnosis,
-      totalAmount: r.totalAmount,
-      printer: r.printer,
-    }));
+    const repairRecords = repairs.map(toRepairBillingRecord);
 
     const preview = buildRepairBillingPreview(repairRecords, catalog);
 

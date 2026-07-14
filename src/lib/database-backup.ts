@@ -21,6 +21,7 @@ export type DatabaseBackupPayload = {
     payments: BackupPayment[];
     printerAuditLogs: BackupPrinterAuditLog[];
     repairDiagnosisOptions?: BackupRepairDiagnosisOption[];
+    repairDiagnosisLines?: BackupRepairDiagnosisLine[];
   };
 };
 
@@ -108,6 +109,7 @@ type BackupRepair = {
   serialNumber: string | null;
   problem: string;
   diagnosis: string | null;
+  pricingMode?: string;
   status: string;
   totalAmount: number;
   isChargeWaived: boolean;
@@ -179,6 +181,14 @@ type BackupRepairDiagnosisOption = {
   updatedAt: string;
 };
 
+type BackupRepairDiagnosisLine = {
+  id: string;
+  repairId: string;
+  name: string;
+  price: number;
+  sortOrder: number;
+};
+
 function toIso(value: Date | null | undefined): string | null {
   if (value == null) return null;
   return value.toISOString();
@@ -211,6 +221,7 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     payments,
     printerAuditLogs,
     repairDiagnosisOptions,
+    repairDiagnosisLines,
   ] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.client.findMany({ orderBy: { createdAt: "asc" } }),
@@ -224,6 +235,7 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     prisma.payment.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.printerAuditLog.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.repairDiagnosisOption.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.repairDiagnosisLine.findMany({ orderBy: { sortOrder: "asc" } }),
   ]);
 
   const data = {
@@ -290,6 +302,13 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
       ...d,
       createdAt: d.createdAt.toISOString(),
       updatedAt: d.updatedAt.toISOString(),
+    })),
+    repairDiagnosisLines: repairDiagnosisLines.map((line) => ({
+      id: line.id,
+      repairId: line.repairId,
+      name: line.name,
+      price: line.price,
+      sortOrder: line.sortOrder,
     })),
   };
 
@@ -385,6 +404,7 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
       await tx.rentalAuditLog.deleteMany();
       await tx.rentalPausePeriod.deleteMany();
       await tx.rental.deleteMany();
+      await tx.repairDiagnosisLine.deleteMany();
       await tx.repair.deleteMany();
       await tx.repairDiagnosisOption.deleteMany();
       await tx.sale.deleteMany();
@@ -468,10 +488,24 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
             ...r,
             source: r.source as never,
             status: r.status as never,
+            pricingMode: (r.pricingMode === "GENERAL" ? "GENERAL" : "CATALOG") as never,
             receivedAt: parseRequiredDate(r.receivedAt),
             completedAt: parseDate(r.completedAt),
             createdAt: parseRequiredDate(r.createdAt),
             updatedAt: parseRequiredDate(r.updatedAt),
+          })),
+        });
+      }
+
+      const diagnosisLineRows = data.repairDiagnosisLines ?? [];
+      if (diagnosisLineRows.length > 0) {
+        await tx.repairDiagnosisLine.createMany({
+          data: diagnosisLineRows.map((line) => ({
+            id: line.id,
+            repairId: line.repairId,
+            name: line.name,
+            price: line.price,
+            sortOrder: line.sortOrder,
           })),
         });
       }

@@ -33,7 +33,12 @@ export default async function RepairDetailPage({
   const [repair, options, timeline] = await Promise.all([
     prisma.repair.findUnique({
       where: { id },
-      include: { client: true, printer: true, payments: { orderBy: { paidAt: "desc" } } },
+      include: {
+        client: true,
+        printer: true,
+        payments: { orderBy: { paidAt: "desc" } },
+        diagnosisLines: { orderBy: { sortOrder: "asc" } },
+      },
     }),
     getRepairFormOptions(),
     prisma.repair
@@ -114,6 +119,11 @@ export default async function RepairDetailPage({
               serialNumber: repair.serialNumber,
               problem: repair.problem,
               diagnosis: repair.diagnosis,
+              pricingMode: repair.pricingMode,
+              diagnosisLines: repair.diagnosisLines.map((line) => ({
+                name: line.name,
+                price: line.price,
+              })),
               status: repair.status,
               totalAmount: repair.totalAmount,
               isChargeWaived: repair.isChargeWaived,

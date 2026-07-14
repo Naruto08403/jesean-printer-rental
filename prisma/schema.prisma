@@ -22,6 +22,7 @@ enum PrinterStatus {
   RENTED
   IN_REPAIR
   RETIRED
+  CLIENT_PERSONAL
 }
 
 enum RentalStatus {
@@ -72,6 +73,11 @@ enum RepairPrinterSource {
   RENTAL
   WALK_IN
   HISTORY
+}
+
+enum RepairPricingMode {
+  CATALOG
+  GENERAL
 }
 
 model RepairDiagnosisOption {
@@ -204,6 +210,7 @@ model Repair {
   serialNumber       String?
   problem            String              @default("")
   diagnosis          String?
+  pricingMode        RepairPricingMode   @default(CATALOG)
   status             ServiceStatus       @default(PENDING)
   totalAmount        Float               @default(0)
   isChargeWaived     Boolean             @default(false)
@@ -212,12 +219,24 @@ model Repair {
   title              String?
   description        String?
   payments           Payment[]
+  diagnosisLines     RepairDiagnosisLine[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
   @@index([serialNumber])
   @@index([printerId])
   @@index([clientId])
+}
+
+model RepairDiagnosisLine {
+  id        String @id @default(cuid())
+  repairId  String
+  repair    Repair @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  name      String
+  price     Float  @default(0)
+  sortOrder Int    @default(0)
+
+  @@index([repairId])
 }
 
 model Sale {
@@ -271,4 +290,47 @@ model Payment {
 
   @@index([batchId])
   @@index([billingYear, billingMonth])
+}
+
+model PrinterBrand {
+  id        String @id @default(cuid())
+  name      String @unique
+
+  models    PrinterModel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PrinterModel {
+  id        String @id @default(cuid())
+
+  brandId   String
+  brand     PrinterBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  name      String
+
+  pricings  RepairPricing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([brandId, name])
+}
+
+model RepairPricing {
+  id              String @id @default(cuid())
+
+  printerModelId  String?
+  printerModel    PrinterModel? @relation(fields: [printerModelId], references: [id], onDelete: Cascade)
+
+  repairName      String
+
+  laborCost       Float
+  partsCost       Float
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([printerModelId])
 }

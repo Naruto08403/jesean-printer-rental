@@ -36,10 +36,14 @@ const FOOTER_BLOCK_HEIGHT = 118;
 const COLOR_HEADER_FILL = rgb(0.718, 0.835, 0.714);
 const COLOR_BORDER = rgb(0.45, 0.55, 0.45);
 const COLOR_TEXT = rgb(0.1, 0.1, 0.1);
-let index = 0;
-let totalIndex = 0;
 
 const MIN_ROWS = 5;
+
+type FieldCounter = {
+  prefix: string;
+  price: number;
+  total: number;
+};
 
 type Fonts = {
   regular: PDFFont;
@@ -169,12 +173,12 @@ function addPriceField(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  fontSize = 8
 ) {
   const field = form.createTextField(name);
   field.setAlignment(TextAlignment.Center);
   field.setText(value != null ? formatPrice(value) : "");
-
   field.addToPage(page, {
     x,
     y,
@@ -183,8 +187,7 @@ function addPriceField(
     borderWidth: 0,
     textColor: rgb(0, 0, 0),
   });
-
-  field.setFontSize(8);
+  field.setFontSize(fontSize);
 }
 
 function drawTableRow(
@@ -193,6 +196,8 @@ function drawTableRow(
   fonts: Fonts,
   y: number,
   form: PDFForm,
+  fields: FieldCounter,
+  pageIndex: number,
   rowIndex: number
 ) {
   const descLines = item.description ? item.description.split("\n") : [""];
@@ -228,41 +233,31 @@ function drawTableRow(
   }
 
   const descTopY = y - 11;
-  descLines.forEach((line, index) => {
+  descLines.forEach((line, lineIndex) => {
     const desc = truncateText(line, fonts.regular, 8, COL_DESC - 8);
     drawCenteredText(
       page,
       desc,
       MARGIN_X + COL_UNIT,
       COL_DESC,
-      descTopY - index * DESC_LINE_HEIGHT,
+      descTopY - lineIndex * DESC_LINE_HEIGHT,
       fonts.regular,
       8
     );
   });
 
   if (item.amount != null) {
-    // drawCenteredText(
-    //   page,
-    //   formatPrice(item.amount),
-    //   MARGIN_X + COL_UNIT + COL_DESC,
-    //   COL_PRICE,
-    //   midY,
-    //   fonts.regular,
-    //   8
-    // );
-    index++;
-
+    fields.price += 1;
     addPriceField(
       form,
       page,
-      `price_${index}`,
+      `${fields.prefix}_p${pageIndex}_r${rowIndex}_price_${fields.price}`,
       item.amount,
       MARGIN_X + COL_UNIT + COL_DESC + 2,
       rowBottom + 2,
       COL_PRICE - 4,
       rowHeight - 4
-  );
+    );
   }
 }
 function documentHeight(items: RepairTemplateLineItem[]) {
@@ -274,7 +269,15 @@ function documentHeight(items: RepairTemplateLineItem[]) {
   );
 }
 
-function drawTotalRow(page: PDFPage, fonts: Fonts, y: number, total: number, form: PDFForm) {
+function drawTotalRow(
+  page: PDFPage,
+  fonts: Fonts,
+  y: number,
+  total: number,
+  form: PDFForm,
+  fields: FieldCounter,
+  pageIndex: number
+) {
   page.drawRectangle({
     x: MARGIN_X,
     y: y - 11,
@@ -286,31 +289,19 @@ function drawTotalRow(page: PDFPage, fonts: Fonts, y: number, total: number, for
   });
   y -= 8;
   drawCenteredText(page, "TOTAL", MARGIN_X + COL_UNIT, COL_DESC, y, fonts.bold, 9);
-//   drawCenteredText(
-//     page,
-//     formatPrice(total),
-//     MARGIN_X + COL_UNIT + COL_DESC,
-//     COL_PRICE,
-//     y,
-//     fonts.bold,
-//     9
-//   );
-  totalIndex++;
-  const totalField = form.createTextField(`grand_total_${totalIndex}`);
-  totalField.setAlignment(TextAlignment.Center);
 
-totalField.setText(formatPrice(total));
-
-totalField.addToPage(page, {
-    x: MARGIN_X + COL_UNIT + COL_DESC + 2,
-    y: y ,
-    width: COL_PRICE - 4,
-    height: 14,
-    borderWidth: 0,
-    backgroundColor: COLOR_HEADER_FILL
-});
-
-totalField.setFontSize(9);
+  fields.total += 1;
+  addPriceField(
+    form,
+    page,
+    `${fields.prefix}_p${pageIndex}_total_${fields.total}`,
+    total,
+    MARGIN_X + COL_UNIT + COL_DESC + 2,
+    y,
+    COL_PRICE - 4,
+    14,
+    9
+  );
 }
 
 function drawFooterBlock(page: PDFPage, fonts: Fonts, y: number, representative: string) {
@@ -408,6 +399,8 @@ async function createStatementPage(
   templateDoc: PDFDocument,
   form: PDFForm,
   fonts: Fonts,
+  fields: FieldCounter,
+  pageIndex: number,
   input: {
     clientName: string;
     issueDate: Date;
@@ -435,31 +428,11 @@ async function createStatementPage(
   const layout = bodyBounds();
   let y = layout.bodyTopY;
 
-  // if (input.showContinued) {
-  //   drawCenteredText(
-  //     page,
-  //     `${input.documentTitle} (continued)`,
-  //     MARGIN_X,
-  //     TABLE_WIDTH,
-  //     y + 10,
-  //     fonts.bold,
-  //     10
-  //   );
-  //   y -= 8;
-  // }
   const title = input.showContinued
-  ? `${input.documentTitle} (continued)`
-  : input.documentTitle;
+    ? `${input.documentTitle} (continued)`
+    : input.documentTitle;
 
-  drawCenteredText(
-    page,
-    title,
-    MARGIN_X,
-    TABLE_WIDTH,
-    y + 10,
-    centuryBold,
-  15
-  );
+  drawCenteredText(page, title, MARGIN_X, TABLE_WIDTH, y + 10, centuryBold, 15);
 
   y -= 8;
 
@@ -470,13 +443,13 @@ async function createStatementPage(
 
   for (let i = 0; i < input.pageItems.length; i++) {
     const item = input.pageItems[i];
-    drawTableRow(page, item, fonts, y, form, i);
+    drawTableRow(page, item, fonts, y, form, fields, pageIndex, i);
     y -= itemRowHeight(item);
   }
 
   if (input.isLastPage) {
     y -= 4;
-    drawTotalRow(page, fonts, y, input.pageTotal, form);
+    drawTotalRow(page, fonts, y, input.pageTotal, form, fields, pageIndex);
     drawFooterBlock(page, fonts, y - 28, input.representative);
   }
 }
@@ -486,6 +459,7 @@ async function appendDocumentPages(
   templateDoc: PDFDocument,
   form: PDFForm,
   fonts: Fonts,
+  fieldPrefix: string,
   input: {
     clientName: string;
     issueDate: Date;
@@ -497,9 +471,10 @@ async function appendDocumentPages(
 ) {
   const layout = bodyBounds();
   const pages = paginateItems(input.lineItems, availableBodyHeight(layout));
+  const fields: FieldCounter = { prefix: fieldPrefix, price: 0, total: 0 };
 
   for (let i = 0; i < pages.length; i++) {
-    await createStatementPage(pdf, templateDoc, form, fonts, {
+    await createStatementPage(pdf, templateDoc, form, fonts, fields, i, {
       clientName: input.clientName,
       issueDate: input.issueDate,
       representative: input.representative,
@@ -537,9 +512,6 @@ export async function generateRepairBillingPdfFromTemplate(
   const templateBytes = await fs.readFile(TEMPLATE_PATH);
   const templateDoc = await PDFDocument.load(templateBytes);
   const pdf = await PDFDocument.create();
-  
-
-  
   const form = pdf.getForm();
 
   const fonts: Fonts = {
@@ -547,7 +519,7 @@ export async function generateRepairBillingPdfFromTemplate(
     bold: await pdf.embedFont(StandardFonts.HelveticaBold),
   };
 
-  await appendDocumentPages(pdf, templateDoc, form, fonts, {
+  await appendDocumentPages(pdf, templateDoc, form, fonts, "billing", {
     clientName: input.clientName,
     issueDate: input.issueDate,
     representative,
@@ -556,7 +528,7 @@ export async function generateRepairBillingPdfFromTemplate(
     pageTotal: billingTotal,
   });
 
-  await appendDocumentPages(pdf, templateDoc, form, fonts, {
+  await appendDocumentPages(pdf, templateDoc, form, fonts, "joborder", {
     clientName: input.clientName,
     issueDate: input.issueDate,
     representative,
@@ -564,6 +536,8 @@ export async function generateRepairBillingPdfFromTemplate(
     lineItems: jobOrderLineItems,
     pageTotal: jobOrderTotal,
   });
+
+  form.updateFieldAppearances(fonts.regular);
 
   return Buffer.from(await pdf.save());
 }

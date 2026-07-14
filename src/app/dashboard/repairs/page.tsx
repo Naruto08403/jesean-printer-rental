@@ -28,7 +28,12 @@ export default async function RepairsPage() {
   const [repairs, formOptions, paymentOptions] = await Promise.all([
     prisma.repair.findMany({
       orderBy: { customerName: "asc" },
-      include: { client: true, printer: true, payments: true },
+      include: {
+        client: true,
+        printer: true,
+        payments: true,
+        diagnosisLines: { orderBy: { sortOrder: "asc" } },
+      },
     }),
     getRepairFormOptions(),
     getRepairPaymentOptions(),
@@ -79,6 +84,11 @@ export default async function RepairsPage() {
         serialNumber: r.serialNumber,
         problem: r.problem,
         diagnosis: r.diagnosis,
+        pricingMode: r.pricingMode,
+        diagnosisLines: r.diagnosisLines.map((line) => ({
+          name: line.name,
+          price: line.price,
+        })),
         status: r.status,
         totalAmount: r.totalAmount,
         isChargeWaived: r.isChargeWaived,

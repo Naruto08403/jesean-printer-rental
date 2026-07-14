@@ -43,7 +43,12 @@ export async function POST(request: Request) {
             ? { clientId }
             : {}),
       },
-      include: { payments: true, client: true, printer: true },
+      include: {
+        payments: true,
+        client: true,
+        printer: true,
+        diagnosisLines: { orderBy: { sortOrder: "asc" } },
+      },
       orderBy: { receivedAt: "asc" },
     });
 

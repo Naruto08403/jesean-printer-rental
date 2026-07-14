@@ -92,6 +92,7 @@ export function EditPrinterForm({
           <option value="RENTED">Rented</option>
           <option value="IN_REPAIR">In repair</option>
           <option value="RETIRED">Retired</option>
+          <option value="CLIENT_PERSONAL">Client personal</option>
         </Select>
       </div>
       <SubmitButton loadingText="Saving…">Save</SubmitButton>

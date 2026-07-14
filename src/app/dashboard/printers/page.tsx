@@ -11,33 +11,57 @@ import { formatPrinterOwnerLabel, printerTypeLabel } from "@/lib/printer";
 import { AddPrinterModal } from "@/components/forms/add-printer-modal";
 import { ImportPrintersModal } from "@/components/forms/import-printers-modal";
 
-const statusColor: Record<string, "green" | "amber" | "blue" | "slate"> = {
+const statusColor: Record<string, "green" | "amber" | "blue"> = {
   AVAILABLE: "green",
   RENTED: "blue",
   IN_REPAIR: "amber",
-  RETIRED: "slate",
+  RETIRED: "blue",
+  CLIENT_PERSONAL: "blue",
 };
 
-const typeColor: Record<string, "blue" | "amber"> = {
+const typeColor: Record<string, "blue" | "amber" | "slate"> = {
   RENTAL: "blue",
   WALK_IN: "amber",
+  CLIENT_PERSONAL: "slate",
+  SLATE: "slate",
 };
 
 export default async function PrintersPage() {
-  const [printers, clients] = await Promise.all([
-    prisma.printer.findMany({
-      orderBy: { updatedAt: "desc" },
-      include: {
-        ownerClient: { select: { name: true } },
-        _count: { select: { rentals: true, repairs: true } },
+  const [printers, clients = []] = await Promise.all([
+  prisma.printer.findMany({
+    orderBy: [
+      {
+        ownerClient: {
+          name: "asc",
+        },
       },
-    }),
-    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-  ]);
+      {
+        brand: "asc",
+      },
+      {
+        model: "asc",
+      },
+    ],
+    include: {
+      ownerClient: {
+        select: {
+          name: true,
+        },
+      },
+      _count: {
+        select: {
+          rentals: true,
+          repairs: true,
+        },
+      },
+    },
+  }),
+    
+]);
 
   const rentalCount = printers.filter((p) => p.type === "RENTAL").length;
   const walkInCount = printers.filter((p) => p.type === "WALK_IN").length;
-
+ 
   return (
     <div className="space-y-6">
       <PageHeader
@@ -54,11 +78,11 @@ export default async function PrintersPage() {
             <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
               <th className="px-4 py-3 font-medium">Unit</th>
               <th className="px-4 py-3 font-medium">Serial</th>
-              <th className="px-4 py-3 font-medium">Type</th>
+              {/* <th className="px-4 py-3 font-medium">Type</th> */}
               <th className="px-4 py-3 font-medium">Owner</th>
               <th className="px-4 py-3 font-medium">Price</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Rentals</th>
+              {/* <th className="px-4 py-3 font-medium">Status</th> */}
+              {/* <th className="px-4 py-3 font-medium">Rentals</th> */}
               <th className="px-4 py-3 font-medium">Repairs</th>
               <th className="px-4 py-3 font-medium" />
             </tr>
@@ -82,29 +106,29 @@ export default async function PrintersPage() {
                   data-search={toSearchText(
                     unit,
                     p.serialNumber,
-                    p.type,
+                    // p.type,
                     printerTypeLabel(p.type),
                     owner,
                     p.price,
                     p.status,
-                    p._count.rentals,
+                    // p._count.rentals,
                     p._count.repairs
                   )}
                   className="border-b border-slate-50 hover:bg-slate-50/50"
                 >
                   <td className="px-4 py-3 font-medium">{unit}</td>
                   <td className="px-4 py-3 text-slate-600">{p.serialNumber ?? "—"}</td>
-                  <td className="px-4 py-3">
+                  {/* <td className="px-4 py-3">
                     <Badge color={typeColor[p.type]}>{printerTypeLabel(p.type)}</Badge>
-                  </td>
+                  </td> */}
                   <td className="px-4 py-3 text-slate-600">{owner}</td>
                   <td className="px-4 py-3 text-slate-600">
                     {p.price != null ? formatCurrency(p.price) : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  {/* <td className="px-4 py-3">
                     <Badge color={statusColor[p.status]}>{p.status.replace("_", " ")}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{p._count.rentals}</td>
+                  </td> */}
+                  {/* <td className="px-4 py-3 text-slate-600">{p._count.rentals}</td> */}
                   <td className="px-4 py-3 text-slate-600">{p._count.repairs}</td>
                   <td className="px-4 py-3 text-right">
                     <Link
