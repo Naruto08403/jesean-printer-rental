@@ -91,7 +91,7 @@ export default async function RepairsPage() {
         })),
         status: r.status,
         totalAmount: r.totalAmount,
-        isChargeWaived: r.isChargeWaived,
+        isChargeWaived: r.isChargeWaived,   
         receivedAt: toDateInput(r.receivedAt),
         completedAt: toDateInput(r.completedAt),
         notes: r.description ?? "",
