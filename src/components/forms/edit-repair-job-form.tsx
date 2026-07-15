@@ -36,6 +36,7 @@ export type RepairEdit = {
   status: ServiceStatus;
   totalAmount: number;
   isChargeWaived: boolean;
+  billingDate: string | null;
   receivedAt: string;
   completedAt: string;
   notes: string;
@@ -58,6 +59,7 @@ export function EditRepairJobForm({
   const [printerId, setPrinterId] = useState(repair.printerId ?? "");
   const [rentalId, setRentalId] = useState(repair.defaultRentalId);
   const [brand, setBrand] = useState(repair.brand ?? "");
+  const [billingDate, setBillingDate] = useState(repair.billingDate ?? new Date().toISOString().split('T')[0]);
   const [model, setModel] = useState(repair.model ?? "");
   const [serialNumber, setSerialNumber] = useState(repair.serialNumber ?? "");
   const [chargeWaived, setChargeWaived] = useState(repair.isChargeWaived);
@@ -146,6 +148,7 @@ export function EditRepairJobForm({
           fd.set("brand", brand);
           fd.set("model", model);
           fd.set("serialNumber", serialNumber);
+          fd.set("billingDate", billingDate);
           fd.set("pricingMode", pricingMode);
           if (pricingMode === "GENERAL") {
             fd.set("generalPrice", generalPrice || "0");
@@ -395,6 +398,16 @@ export function EditRepairJobForm({
           className="mt-1"
         />
       </div>
+
+      <div>
+  <Label>Billing Date</Label>
+    <Input
+      type="date"
+      value={billingDate}
+      onChange={(e) => setBillingDate(e.target.value)}
+      className="mt-1"
+    />
+  </div>
       <div className="sm:col-span-2">
         <Label>Notes</Label>
         <Input name="notes" defaultValue={repair.notes} className="mt-1" />

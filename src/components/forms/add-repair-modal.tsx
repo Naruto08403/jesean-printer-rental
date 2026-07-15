@@ -44,6 +44,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
   const [problem, setProblem] = useState("");
   const [status, setStatus] = useState("PENDING");
   const [receivedAt, setReceivedAt] = useState(todayInput());
+  const [billingDate, setBillingDate] = useState("");
   const [completedAt, setCompletedAt] = useState("");
   const [notes, setNotes] = useState("");
   const [chargeWaived, setChargeWaived] = useState(false);
@@ -175,6 +176,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
     setProblem("");
     setStatus("PENDING");
     setReceivedAt(todayInput());
+    setBillingDate("");
     setCompletedAt("");
     setNotes("");
     setSelectedDiagnoses([]);
@@ -197,6 +199,9 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
     fd.set("status", status);
     fd.set("receivedAt", receivedAt);
     if (completedAt) fd.set("completedAt", completedAt);
+    if (billingDate) {
+      fd.set("billingDate", billingDate);
+    }
     if (notes.trim()) fd.set("notes", notes.trim());
     fd.set("diagnosis", formatDiagnosisString(selectedDiagnoses));
     fd.set("pricingMode", pricingMode);
@@ -609,6 +614,16 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
               type="date"
               value={completedAt}
               onChange={(e) => setCompletedAt(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label>Billing Date</Label>
+            <Input
+              type="date"
+              value={billingDate}
+              onChange={(e) => setBillingDate(e.target.value)}
               className="mt-1"
             />
           </div>

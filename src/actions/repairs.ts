@@ -53,6 +53,7 @@ async function resolveRepairDevice(formData: FormData) {
   let model = String(formData.get("model") || "").trim() || null;
   let serialNumber = String(formData.get("serialNumber") || "").trim() || null;
   const hasFormDevice = Boolean(brand || model || serialNumber);
+  
 
   let linkedFromRepairId: string | null = null;
   let resolvedPrinterId: string | null = printerId;
@@ -240,6 +241,7 @@ export async function getRepairFormOptions() {
         serialNumber: true,
         customerName: true,
         receivedAt: true,
+        billingDate: true,
         problem: true,
         client: { select: { name: true } },
       },
@@ -335,6 +337,9 @@ export async function createRepair(formData: FormData) {
     generalPrice: fields.generalPrice,
   });
 
+  const billingDate = parseDate(String(formData.get("billingDate") || ""), "billing date");
+  billingDate: billingDate ? new Date(billingDate) : null;
+
   const repair = await prisma.repair.create({
     data: {
       clientId: device.clientId,
@@ -348,6 +353,7 @@ export async function createRepair(formData: FormData) {
       problem: fields.problem,
       diagnosis: pricing.diagnosis,
       pricingMode: pricing.pricingMode,
+      billingDate: billingDate,
       status: fields.status,
       totalAmount: pricing.totalAmount,
       isChargeWaived,
@@ -398,6 +404,9 @@ export async function updateRepair(id: string, formData: FormData) {
     generalPrice: fields.generalPrice,
   });
 
+  const billingDate = parseDate(String(formData.get("billingDate") || ""), "billing date");
+  billingDate: billingDate ? new Date(billingDate) : null;
+
   const repair = await prisma.repair.update({
     where: { id },
     data: {
@@ -408,6 +417,7 @@ export async function updateRepair(id: string, formData: FormData) {
       linkedFromRepairId: device.linkedFromRepairId,
       brand: device.brand,
       model: device.model,
+      billingDate: billingDate,
       serialNumber: device.serialNumber,
       problem: fields.problem,
       diagnosis: pricing.diagnosis,

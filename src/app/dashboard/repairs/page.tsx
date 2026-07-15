@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { toSearchText } from "@/lib/search";
 import { AddRepairModal } from "@/components/forms/add-repair-modal";
 import { summarizePayments } from "@/lib/payments";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   formatRepairCustomerLabel,
   formatRepairPrinterLabel,
@@ -24,10 +24,15 @@ function toDateInput(d: Date | null | undefined) {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 }
 
+function filterDateParts(billingDate: Date | null | undefined, receivedAt: Date) {
+  const d = billingDate ?? receivedAt;
+  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
 export default async function RepairsPage() {
   const [repairs, formOptions, paymentOptions] = await Promise.all([
     prisma.repair.findMany({
-      orderBy: { customerName: "asc" },
+      orderBy: { receivedAt: "desc" },
       include: {
         client: true,
         printer: true,
@@ -53,6 +58,14 @@ export default async function RepairsPage() {
       !r.isChargeWaived &&
       r.totalAmount > 0 &&
       !paymentSummary.isFullyPaid;
+
+    const isBillable = !r.isChargeWaived && r.totalAmount > 0;
+    const isPaid = isBillable && paymentSummary.isFullyPaid;
+    const isBilledUnpaid = isUnpaid && r.billingDate != null;
+    const { year: filterYear, month: filterMonth } = filterDateParts(
+      r.billingDate,
+      r.receivedAt
+    );
 
     const defaultRentalId =
       formOptions.rentalPrinters.find((rp) => rp.printerId === r.printerId)?.rentalId ?? "";
@@ -91,7 +104,8 @@ export default async function RepairsPage() {
         })),
         status: r.status,
         totalAmount: r.totalAmount,
-        isChargeWaived: r.isChargeWaived,   
+        isChargeWaived: r.isChargeWaived,
+        billingDate: toDateInput(r.billingDate),
         receivedAt: toDateInput(r.receivedAt),
         completedAt: toDateInput(r.completedAt),
         notes: r.description ?? "",
@@ -103,6 +117,7 @@ export default async function RepairsPage() {
       id: r.id,
       clientKey,
       receivedAt: r.receivedAt.toISOString(),
+      billingDate: r.billingDate?.toISOString() ?? null,
       customerLabel,
       printerLabel,
       serialNumber: serial,
@@ -113,6 +128,11 @@ export default async function RepairsPage() {
       paymentSummary,
       paymentCount: r.payments.length,
       isUnpaid,
+      isBillable,
+      isPaid,
+      isBilledUnpaid,
+      filterYear,
+      filterMonth,
       searchText: toSearchText(
         customerLabel,
         printerLabel,
@@ -125,6 +145,7 @@ export default async function RepairsPage() {
         r.printer?.model,
         repairDisplayTitle(r),
         r.diagnosis,
+        r.billingDate ? formatDate(r.billingDate) : "",
         formatCurrency(r.totalAmount),
         formatCurrency(paymentSummary.balance)
       ),

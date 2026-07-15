@@ -218,6 +218,7 @@ model Repair {
   completedAt        DateTime?
   title              String?
   description        String?
+  billingDate        DateTime?
   payments           Payment[]
   diagnosisLines     RepairDiagnosisLine[]
   createdAt          DateTime            @default(now())

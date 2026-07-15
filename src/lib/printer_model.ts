@@ -53,4 +53,8 @@ export const PRINTER_MODELS = {
       "LaserJet Pro MFP M28w",
       "LaserJet Pro M404dn",
     ],
+    CPU: [
+      "Aspire System Unit",
+      "Inplay System Unit",
+    ],
   } as const;

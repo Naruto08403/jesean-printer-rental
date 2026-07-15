@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Card, CardTitle } from "@/components/ui/card";
 import { getRepairDeviceTimeline, getRepairFormOptions } from "@/actions/repairs";
-import { EditRepairJobForm } from "@/components/forms/edit-repair-job-form";
+import { EditRepairJobForm, type RepairEdit } from "@/components/forms/edit-repair-job-form";
 import { DeleteRepairButton } from "@/components/forms/delete-repair-button";
 import { PaymentForm } from "@/components/payment-form";
 import { PaymentStatus } from "@/components/payment-status";
@@ -54,6 +54,33 @@ export default async function RepairDetailPage({
   const defaultRentalId =
     options.rentalPrinters.find((r) => r.printerId === repair.printerId)?.rentalId ?? "";
 
+  const repairEdit: RepairEdit = {
+    id: repair.id,
+    source: repair.source,
+    clientId: repair.clientId,
+    customerName: repair.customerName,
+    printerId: repair.printerId,
+    linkedFromRepairId: repair.linkedFromRepairId,
+    brand: repair.brand,
+    model: repair.model,
+    serialNumber: repair.serialNumber,
+    problem: repair.problem,
+    diagnosis: repair.diagnosis,
+    pricingMode: repair.pricingMode,
+    diagnosisLines: repair.diagnosisLines.map((line) => ({
+      name: line.name,
+      price: line.price,
+    })),
+    status: repair.status,
+    totalAmount: repair.totalAmount,
+    isChargeWaived: repair.isChargeWaived,
+    billingDate: repair.billingDate ? toDateInput(repair.billingDate) : null,
+    receivedAt: toDateInput(repair.receivedAt),
+    completedAt: toDateInput(repair.completedAt),
+    notes: repair.description ?? "",
+    defaultRentalId,
+  };
+
   return (
     <div className="space-y-6">
       <Link href="/dashboard/repairs" className="text-sm text-brand-600 hover:underline">
@@ -88,7 +115,10 @@ export default async function RepairDetailPage({
       </div>
 
       {!repair.isChargeWaived && repair.totalAmount > 0 && (
-        <PaymentStatus summary={summary} />
+        <PaymentStatus
+          summary={summary}
+          billing={repair.billingDate?.toISOString() ?? null}
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -106,34 +136,7 @@ export default async function RepairDetailPage({
         )}
         <Card className={repair.isChargeWaived ? "lg:col-span-2" : ""}>
           <CardTitle>Edit repair job</CardTitle>
-          <EditRepairJobForm
-            repair={{
-              id: repair.id,
-              source: repair.source,
-              clientId: repair.clientId,
-              customerName: repair.customerName,
-              printerId: repair.printerId,
-              linkedFromRepairId: repair.linkedFromRepairId,
-              brand: repair.brand,
-              model: repair.model,
-              serialNumber: repair.serialNumber,
-              problem: repair.problem,
-              diagnosis: repair.diagnosis,
-              pricingMode: repair.pricingMode,
-              diagnosisLines: repair.diagnosisLines.map((line) => ({
-                name: line.name,
-                price: line.price,
-              })),
-              status: repair.status,
-              totalAmount: repair.totalAmount,
-              isChargeWaived: repair.isChargeWaived,
-              receivedAt: toDateInput(repair.receivedAt),
-              completedAt: toDateInput(repair.completedAt),
-              notes: repair.description ?? "",
-              defaultRentalId,
-            }}
-            options={options}
-          />
+          <EditRepairJobForm repair={repairEdit} options={options} />
         </Card>
       </div>
 
