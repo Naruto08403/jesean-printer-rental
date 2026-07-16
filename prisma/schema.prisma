@@ -116,7 +116,7 @@ model Client {
   rentals   Rental[]
   repairs   Repair[]
   sales     Sale[]
-  cctvJobs  CctvInstallation[]
+ 
   ownedPrinters Printer[] @relation("PrinterOwner")
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
@@ -256,12 +256,12 @@ model Sale {
 
 model CctvInstallation {
   id          String        @id @default(cuid())
-  clientId    String
-  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientName  String
   status      ServiceStatus @default(PENDING)
   siteAddress String?
   description String?
   totalAmount Float
+  dateStarted DateTime?
   completedAt DateTime?
   payments    Payment[]
   createdAt   DateTime      @default(now())

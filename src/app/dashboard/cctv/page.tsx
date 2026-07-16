@@ -11,23 +11,22 @@ import { toSearchText } from "@/lib/search";
 import { AddCctvModal } from "@/components/forms/add-cctv-modal";
 import { PaymentStatus } from "@/components/payment-status";
 import { summarizePayments } from "@/lib/payments";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { DeleteCctvButton } from "@/components/delete-cctv-button";
+import { EditCctvModal } from "@/components/forms/edit-cctv-modal";
 
 export default async function CctvPage() {
-  const [jobs, clients] = await Promise.all([
+  const [jobs] = await Promise.all([
     prisma.cctvInstallation.findMany({
       orderBy: { createdAt: "desc" },
-      include: { client: true, payments: true },
+      include: { payments: true },
     }),
-    prisma.client.findMany({ orderBy: { name: "asc" } }),
   ]);
-
-  const clientOptions = clients.map((c) => ({ id: c.id, label: c.name }));
 
   return (
     <div className="space-y-6">
       <PageHeader title="CCTV installations" subtitle={`${jobs.length} total`}>
-        <AddCctvModal clients={clientOptions} />
+        <AddCctvModal />
       </PageHeader>
 
       <SearchableDataTable placeholder="Search CCTV by client, site, description, status...">
@@ -35,7 +34,7 @@ export default async function CctvPage() {
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
               <th className="px-4 py-3 font-medium">Client</th>
-              <th className="px-4 py-3 font-medium">Site</th>
+              <th className="px-4 py-3 font-medium">Date Started</th>
               <th className="px-4 py-3 font-medium">Description</th>
               <th className="px-4 py-3 font-medium">Total</th>
               <th className="px-4 py-3 font-medium">Status</th>
@@ -59,8 +58,8 @@ export default async function CctvPage() {
                   key={j.id}
                   data-search-row
                   data-search={toSearchText(
-                    j.client.name,
-                    j.siteAddress,
+                    j.clientName,
+                    j.dateStarted,
                     j.description,
                     formatCurrency(j.totalAmount),
                     j.status,
@@ -68,8 +67,8 @@ export default async function CctvPage() {
                   )}
                   className="border-b border-slate-50 hover:bg-slate-50/50"
                 >
-                  <td className="px-4 py-3 font-medium">{j.client.name}</td>
-                  <td className="px-4 py-3 text-slate-600">{j.siteAddress ?? "—"}</td>
+                  <td className="px-4 py-3 font-medium">{j.clientName}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatDate(j.dateStarted)}</td>
                   <td className="max-w-[180px] truncate px-4 py-3 text-slate-600">
                     {j.description ?? "—"}
                   </td>
@@ -97,6 +96,18 @@ export default async function CctvPage() {
                     >
                       View
                     </Link>
+                    <DeleteCctvButton id={j.id} clientName={j.clientName ?? "Unknown"} />
+                    <EditCctvModal
+                          job={{
+                            id: j.id,
+                            status: j.status,
+                            totalAmount: Number(j.totalAmount),
+                            siteAddress: j.siteAddress ?? "",
+                            description: j.description ?? "",
+                            dateStarted: j.dateStarted,
+                            dateCompleted: j.dateCompleted,
+                          }}
+                        />
                   </td>
                 </tr>
               );

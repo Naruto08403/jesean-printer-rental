@@ -7,26 +7,54 @@ import type { ServiceStatus } from "@prisma/client";
 
 export async function createCctv(formData: FormData) {
   await requireAdmin();
-  const clientId = String(formData.get("clientId"));
-  const siteAddress = String(formData.get("siteAddress") || "").trim() || null;
-  const description = String(formData.get("description") || "").trim() || null;
-  const totalAmount = Number(formData.get("totalAmount"));
-
+    const clientName = String(formData.get("clientName"));
+    const siteAddress = String(formData.get("siteAddress") || "").trim() || null;
+    const description = String(formData.get("description") || "").trim() || null;
+    const totalAmount = Number(formData.get("totalAmount"));
+    const dateStarted = new Date(String(formData.get("dateStarted")));
   await prisma.cctvInstallation.create({
-    data: { clientId, siteAddress, description, totalAmount },
+    data: {
+      clientName,
+      siteAddress,
+      description,
+      totalAmount,
+      dateStarted: new Date(dateStarted),
+    },
   });
 
   revalidatePath("/dashboard/cctv");
 }
-
-export async function updateCctvStatus(id: string, status: ServiceStatus) {
+export async function updateCctvStatus(
+  id: string,
+  status: ServiceStatus,
+  totalAmount: number,
+  dateStarted: Date,
+  completedAt: Date | null,
+  siteAddress: string,
+  description: string
+) {
   await requireAdmin();
+
   await prisma.cctvInstallation.update({
     where: { id },
     data: {
       status,
-      completedAt: status === "COMPLETED" ? new Date() : null,
+      totalAmount,
+      dateStarted,
+      completedAt,
+      siteAddress,
+      description,
     },
   });
+
+  revalidatePath("/dashboard/cctv");
   revalidatePath(`/dashboard/cctv/${id}`);
+}
+
+export async function deleteCctv(id: string) {
+  await prisma.cctvInstallation.delete({
+    where: { id },
+  });
+
+  revalidatePath("/dashboard/cctv");
 }

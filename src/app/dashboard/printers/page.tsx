@@ -48,6 +48,19 @@ export default async function PrintersPage() {
           name: true,
         },
       },
+      rentals: {
+        where: {
+          status: "ACTIVE", // adjust if your active status is different
+        },
+        take: 1,
+        include: {
+          client: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
       _count: {
         select: {
           rentals: true,
@@ -97,7 +110,19 @@ export default async function PrintersPage() {
             )}
             {printers.map((p) => {
               const unit = [p.brand, p.model].filter(Boolean).join(" ") || "Printer";
-              const owner = formatPrinterOwnerLabel(p);
+              let owner: string;
+
+                if (p.type === "WALK_IN") {
+                  owner = p.ownerClient?.name ?? "—";
+                } else if (p.type === "RENTAL") {
+                  const activeRental = p.rentals[0];
+
+                  owner = activeRental
+                    ? `RENTED - ${activeRental.client.name}`
+                    : "Admin";
+                } else {
+                  owner = "Admin";
+                }
               return (
                 <tr
                   key={p.id}

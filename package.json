@@ -23,6 +23,7 @@
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.513.0",
+    "luxon": "^3.7.2",
     "next": "^15.3.3",
     "next-auth": "^5.0.0-beta.28",
     "papaparse": "^5.5.3",

@@ -14,7 +14,7 @@ export default async function PortalServicesPage() {
   if (!data) redirect("/portal/login");
 
   const hasAny =
-    data.repairs.length > 0 || data.sales.length > 0 || data.cctvJobs.length > 0;
+    data.repairs.length > 0 || data.sales.length > 0;
 
   return (
     <div className="space-y-10">
@@ -93,19 +93,9 @@ export default async function PortalServicesPage() {
         </section>
       )}
 
-      {data.cctvJobs.length > 0 && (
-        <section id="cctv">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-              <Shield className="h-4 w-4" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900">CCTV installations</h2>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-              {data.cctvJobs.length}
-            </span>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {data.cctvJobs.map((j) => (
+      
+          {/* <div className="grid gap-4 lg:grid-cols-2">
+            {data.repairs.map((j) => (
               <PortalServiceCard
                 key={j.id}
                 kind="cctv"
@@ -117,9 +107,7 @@ export default async function PortalServicesPage() {
                 date={j.createdAt}
               />
             ))}
-          </div>
-        </section>
-      )}
+          </div> */}
     </div>
   );
 }

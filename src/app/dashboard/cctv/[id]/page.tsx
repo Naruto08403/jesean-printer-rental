@@ -19,7 +19,7 @@ export default async function CctvDetailPage({
   const { id } = await params;
   const job = await prisma.cctvInstallation.findUnique({
     where: { id },
-    include: { client: true, payments: { orderBy: { paidAt: "desc" } } },
+    include: {  payments: { orderBy: { paidAt: "desc" } } },
   });
   if (!job) notFound();
 
@@ -35,7 +35,7 @@ export default async function CctvDetailPage({
       <Link href="/dashboard/cctv" className="text-sm text-brand-600 hover:underline">
         ← CCTV
       </Link>
-      <h1 className="text-2xl font-bold">{job.client.name}</h1>
+      <h1 className="text-2xl font-bold">{job.clientName}</h1>
       <p className="text-slate-500">{job.siteAddress ?? job.description ?? "Installation"}</p>
       <PaymentStatus summary={summary} />
 
@@ -66,9 +66,15 @@ export default async function CctvDetailPage({
       <Card>
         <CardTitle>Payments</CardTitle>
         <ul className="mt-4 divide-y text-sm">
+        <li className="flex justify-between py-3">
+              <span>Date</span>
+              <span>Payment Reference Number</span>
+              <span>Amount</span>
+            </li>
           {job.payments.map((p) => (
             <li key={p.id} className="flex justify-between py-3">
               <span>{formatDate(p.paidAt)}</span>
+              <span>{p.reference}</span>
               <span>{formatCurrency(p.amount)}</span>
             </li>
           ))}

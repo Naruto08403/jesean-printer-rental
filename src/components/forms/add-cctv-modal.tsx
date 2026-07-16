@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { prisma } from "@/lib/prisma";
 
-type Option = { id: string; label: string };
 
-export function AddCctvModal({ clients }: { clients: Option[] }) {
+export function AddCctvModal() {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -35,23 +35,36 @@ export function AddCctvModal({ clients }: { clients: Option[] }) {
           }
         >
           <div className="sm:col-span-2">
-            <Label>Client *</Label>
-            <Select name="clientId" required>
-              <option value="">Select</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
+            <Label>Client name *</Label>
+            <Input
+              name="clientName"
+              placeholder="Enter client name"
+              required
+            />
           </div>
           <div>
             <Label>Total (PHP) *</Label>
             <Input name="totalAmount" type="number" step="0.01" required />
           </div>
+          
           <div>
             <Label>Site address</Label>
             <Input name="siteAddress" />
+          </div>
+          <div>
+            <Label>Date started *</Label>
+            <Input
+              name="dateStarted"
+              type="date"
+              required
+            />
+          </div>
+          <div>
+            <Label>Date completed *</Label>
+            <Input
+              name="dateCompleted"
+              type="date"
+              />
           </div>
           <div className="sm:col-span-2">
             <Label>Description</Label>
