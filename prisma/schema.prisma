@@ -220,6 +220,7 @@ model Repair {
   description        String?
   billingDate        DateTime?
   payments           Payment[]
+  paymentType        String?
   diagnosisLines     RepairDiagnosisLine[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt

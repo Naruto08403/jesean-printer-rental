@@ -41,7 +41,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
-  const [problem, setProblem] = useState("");
+  const [problem, setProblem] = useState("Unknown");
   const [status, setStatus] = useState("PENDING");
   const [receivedAt, setReceivedAt] = useState(todayInput());
   const [billingDate, setBillingDate] = useState("");
@@ -173,7 +173,7 @@ export function AddRepairModal({ options }: { options: FormOptions }) {
     setBrand("");
     setModel("");
     setSerialNumber("");
-    setProblem("");
+    setProblem("Unknown");
     setStatus("PENDING");
     setReceivedAt(todayInput());
     setBillingDate("");

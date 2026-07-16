@@ -4,7 +4,7 @@ import {
   formatRepairPrinterLabel,
   repairDisplayTitle,
 } from "@/lib/repair-device";
-import { generateRepairBillingPdfFromTemplate } from "@/lib/repair-billing-pdf";
+import { generateRepairBillingPdf as renderRepairBillingPdf } from "@/lib/repair-billing-pdf";
 import { listActiveRepairDiagnosisCatalog } from "@/actions/repair-diagnoses";
 import type { RepairTemplateLineItem } from "@/lib/repair-billing-lines";
 import { toRepairBillingRecord } from "@/lib/repair-billing-record";
@@ -109,7 +109,7 @@ export async function generateRepairBillingPdf(
     })
   );
 
-  return generateRepairBillingPdfFromTemplate({
+  return renderRepairBillingPdf({
     ...rest,
     repairs: billingRepairs,
     diagnosisCatalog,

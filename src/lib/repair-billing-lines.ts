@@ -144,11 +144,55 @@ export function buildBillingStatementLineItems(
 }
 
 /** Job order: one row per diagnosis using saved line prices when available. */
+// export function buildJobOrderLineItems(
+//   repairs: RepairBillingRepairRecord[],
+//   catalog: DiagnosisPriceEntry[] = []
+// ): RepairTemplateLineItem[] {
+//   return repairs.flatMap((repair) => {
+//     if (repair.diagnosisLines && repair.diagnosisLines.length > 0) {
+//       return repair.diagnosisLines.map((row, index) => ({
+//         unitLabel: index === 0 ? formatRepairUnitLabel(repair) : "",
+//         description: row.name.toUpperCase(),
+//         amount: row.price,
+//         isPrimary: index === 0,
+//         repairId: repair.id,
+//       }));
+//     }
+
+//     const diagnoses = parseDiagnosisItems(repair.diagnosis, repairDisplayTitle(repair));
+//     const priced = resolveJobOrderDiagnosisPrices(diagnoses, repair.totalAmount, catalog);
+
+//     return priced.map((row, index) => ({
+//       unitLabel: index === 0 ? formatRepairUnitLabel(repair) : "",
+//       description: row.name,
+//       amount: row.price,
+//       isPrimary: index === 0,
+//       repairId: repair.id,
+//     }));
+//   });
+// }
+
 export function buildJobOrderLineItems(
   repairs: RepairBillingRepairRecord[],
   catalog: DiagnosisPriceEntry[] = []
 ): RepairTemplateLineItem[] {
   return repairs.flatMap((repair) => {
+    // GENERAL PRICE = single line item
+    if (repair.pricingMode === "GENERAL") {
+      const diagnoses = repair.diagnosisLines?.length
+        ? repair.diagnosisLines.map((d) => d.name.toUpperCase())
+        : parseDiagnosisItems(repair.diagnosis, repairDisplayTitle(repair));
+
+      return [{
+        unitLabel: formatRepairUnitLabel(repair),
+        description: wrapDiagnosisCommaSeparated(diagnoses, 50).join("\n"),
+        amount: repair.totalAmount,
+        isPrimary: true,
+        repairId: repair.id,
+      }];
+    }
+
+    // CATALOG = existing behavior
     if (repair.diagnosisLines && repair.diagnosisLines.length > 0) {
       return repair.diagnosisLines.map((row, index) => ({
         unitLabel: index === 0 ? formatRepairUnitLabel(repair) : "",
@@ -160,7 +204,11 @@ export function buildJobOrderLineItems(
     }
 
     const diagnoses = parseDiagnosisItems(repair.diagnosis, repairDisplayTitle(repair));
-    const priced = resolveJobOrderDiagnosisPrices(diagnoses, repair.totalAmount, catalog);
+    const priced = resolveJobOrderDiagnosisPrices(
+      diagnoses,
+      repair.totalAmount,
+      catalog
+    );
 
     return priced.map((row, index) => ({
       unitLabel: index === 0 ? formatRepairUnitLabel(repair) : "",
@@ -171,7 +219,6 @@ export function buildJobOrderLineItems(
     }));
   });
 }
-
 /** @deprecated Use buildBillingStatementLineItems or buildJobOrderLineItems */
 export function buildTemplateLineItems(
   repairs: RepairBillingRepairRecord[]

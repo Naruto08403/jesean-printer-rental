@@ -31,11 +31,35 @@ export default async function DashboardPage() {
     take: 5,
   });
 
-  const overdue = rentalsWithBalance.filter((r) => {
+  // const overdue = rentalsWithBalance.filter((r) => {
+  //   const total = rentalExpectedTotal(r);
+  //   const s = summarizePayments(total, r.payments);
+  //   return !s.isFullyPaid;
+  // });
+
+  const rentals = await prisma.rental.findMany({
+    where: { status: "ACTIVE" },
+    include: {
+      payments: true,
+      client: true,
+    },
+  });
+  
+  const overdue = rentals.filter((r) => {
     const total = rentalExpectedTotal(r);
     const s = summarizePayments(total, r.payments);
     return !s.isFullyPaid;
   });
+  const overdueRentals = rentals.filter((r) => {
+    const total = rentalExpectedTotal(r);
+    const s = summarizePayments(total, r.payments);
+    return !s.isFullyPaid;
+  });
+  const clientsWithBalance = Array.from(
+    new Map(
+      overdueRentals.map((r) => [r.clientId, r.client])
+    ).values()
+  );
 
   return (
     <div className="space-y-6">
@@ -49,9 +73,9 @@ export default async function DashboardPage() {
         <StatCard title="Active rentals" value={activeRentals} icon={KeyRound} />
         <StatCard title="Open repairs" value={openRepairs} icon={Wrench} />
         <StatCard
-          title="Rentals with balance"
-          value={overdue.length}
-          subtitle="Active rentals not fully paid"
+          title="Rental Clients with balance"
+          value={clientsWithBalance.length}
+          subtitle="Clients with unpaid rentals"
           icon={AlertCircle}
         />
       </div>

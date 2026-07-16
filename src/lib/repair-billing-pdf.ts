@@ -1,6 +1,15 @@
 import fs from "fs/promises";
 import path from "path";
-import { TextAlignment, PDFForm, PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from "pdf-lib";
+import {
+  PDFDocument,
+  PDFForm,
+  StandardFonts,
+  TextAlignment,
+  rgb,
+  type PDFPage,
+  type PDFFont,
+} from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import type { RepairBillingStatement } from "@/lib/repair-billing";
 import {
   buildBillingStatementLineItems,
@@ -11,17 +20,16 @@ import {
   type RepairBillingRepairRecord,
   type RepairTemplateLineItem,
 } from "@/lib/repair-billing-lines";
-import fontkit from "@pdf-lib/fontkit";
-const TEMPLATE_PATH = path.join(process.cwd(), "templates", "repair_template.pdf");
 
+/** Legal 8.5×13 in at 72 dpi */
 const PAGE_WIDTH = 612;
-const PAGE_HEIGHT = 792;
-
-/** Keep template header (logo, company info, title). Content below is redrawn. */
-const HEADER_BOTTOM_Y = 660;
+const PAGE_HEIGHT = 936;
 
 const MARGIN_X = 36;
+const MARGIN_TOP = 36;
+const MARGIN_BOTTOM = 24;
 const TABLE_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
+
 const COL_UNIT = 118;
 const COL_PRICE = 88;
 const COL_DESC = TABLE_WIDTH - COL_UNIT - COL_PRICE;
@@ -30,30 +38,19 @@ const ROW_HEIGHT = 16;
 const DESC_LINE_HEIGHT = 10;
 const TABLE_HEADER_HEIGHT = 18;
 
-/** Space reserved at bottom for total + received note + signatures. */
+const COMPANY_HEADER_HEIGHT = 70;
+const SECTION_TITLE_HEIGHT = 22;
+const SECTION_CUSTOMER_HEIGHT = 10;
+const SECTION_GAP = 6;
 const FOOTER_BLOCK_HEIGHT = 118;
+const COMBINED_DIVIDER_HEIGHT = 12;
 
 const COLOR_HEADER_FILL = rgb(0.718, 0.835, 0.714);
 const COLOR_BORDER = rgb(0.45, 0.55, 0.45);
 const COLOR_TEXT = rgb(0.1, 0.1, 0.1);
 
-const MIN_ROWS = 5;
-
-type FieldCounter = {
-  prefix: string;
-  price: number;
-  total: number;
-};
-
-type Fonts = {
-  regular: PDFFont;
-  bold: PDFFont;
-};
-
-type PageLayout = {
-  bodyTopY: number;
-  bodyBottomY: number;
-};
+const LOGO_PATH = path.join(process.cwd(), "public", "images", "logo.png");
+const MIN_ROWS_SEPARATE = 5;
 
 export type RepairBillingPdfInput = RepairBillingStatement & {
   repairs: RepairBillingRepairRecord[];
@@ -64,8 +61,22 @@ export type RepairBillingPdfInput = RepairBillingStatement & {
   documentTitle?: string;
 };
 
+type Fonts = {
+  regular: PDFFont;
+  bold: PDFFont;
+};
+
+type FieldCounter = {
+  prefix: string;
+  price: number;
+  total: number;
+};
+
 function formatPrice(amount: number) {
-  return amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 }
 
 function formatIssueDate(d: Date) {
@@ -84,6 +95,38 @@ function truncateText(text: string, font: PDFFont, size: number, maxWidth: numbe
 function itemRowHeight(item: RepairTemplateLineItem) {
   const lineCount = Math.max(1, item.description.split("\n").length);
   return ROW_HEIGHT + (lineCount - 1) * DESC_LINE_HEIGHT;
+}
+
+function tableBodyHeight(items: RepairTemplateLineItem[]) {
+  return (
+    TABLE_HEADER_HEIGHT +
+    items.reduce((height, item) => height + itemRowHeight(item), 0) +
+    TABLE_HEADER_HEIGHT
+  );
+}
+
+function fullSectionHeight(items: RepairTemplateLineItem[]) {
+  return (
+    COMPANY_HEADER_HEIGHT +
+    SECTION_TITLE_HEIGHT +
+    SECTION_CUSTOMER_HEIGHT +
+    SECTION_GAP +
+    tableBodyHeight(items) +
+    8 +
+    FOOTER_BLOCK_HEIGHT
+  );
+}
+
+function canCombineOnSinglePage(
+  billingItems: RepairTemplateLineItem[],
+  jobOrderItems: RepairTemplateLineItem[]
+) {
+  const available = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
+  const needed =
+    fullSectionHeight(billingItems) +
+    COMBINED_DIVIDER_HEIGHT +
+    fullSectionHeight(jobOrderItems);
+  return needed <= available;
 }
 
 function drawCenteredText(
@@ -126,14 +169,60 @@ function drawRightText(
   });
 }
 
-function clearDynamicArea(page: PDFPage) {
-  page.drawRectangle({
-    x: 0,
-    y: 0,
-    width: PAGE_WIDTH,
-    height: HEADER_BOTTOM_Y,
-    color: rgb(1, 1, 1),
+async function drawCompanyHeader(
+  pdf: PDFDocument,
+  page: PDFPage,
+  fonts: Fonts,
+  topY: number
+) {
+  const logoBytes = await fs.readFile(LOGO_PATH);
+  const logo = await pdf.embedPng(logoBytes);
+
+  const logoWidth = 72;
+  const logoHeight = 52;
+  const logoY = topY - logoHeight;
+
+  page.drawImage(logo, {
+    x: 140,
+    y: logoY - 30,
+    width: logoWidth,
+    height: logoHeight,
   });
+
+  drawCenteredText(
+    page,
+    "JESEAN PRINTER & COMPUTER SPECIALISTS",
+    0,
+    PAGE_WIDTH,
+    topY - 18,
+    fonts.bold,
+    14
+  );
+  drawCenteredText(
+    page,
+    "Durano Street, Brgy. Diego Silang, Butuan City",
+    0,
+    PAGE_WIDTH,
+    topY - 34,
+    fonts.regular,
+    9
+  );
+  drawCenteredText(
+    page,
+    "Contact No. 09100037442",
+    0,
+    PAGE_WIDTH,
+    topY - 48,
+    fonts.regular,
+    9
+  );
+
+  return topY - COMPANY_HEADER_HEIGHT;
+}
+
+function drawSectionTitle(page: PDFPage, title: string, y: number, fonts: Fonts) {
+  drawCenteredText(page, title, MARGIN_X, TABLE_WIDTH, y, fonts.bold, 15);
+  return y - SECTION_TITLE_HEIGHT;
 }
 
 function drawCustomerLine(
@@ -143,28 +232,25 @@ function drawCustomerLine(
   fonts: Fonts,
   y: number
 ) {
-  const customer = `CUSTOMER: ${clientName.toUpperCase()}`;
-  const date = `DATE:${formatIssueDate(issueDate)}`;
-  page.drawText(customer, { x: MARGIN_X, y, size: 10, font: fonts.regular, color: COLOR_TEXT });
-  drawRightText(page, date, MARGIN_X, TABLE_WIDTH, y, fonts.regular, 10);
-}
-
-function drawTableHeader(page: PDFPage, fonts: Fonts, y: number) {
-  page.drawRectangle({
+  page.drawText(`CUSTOMER: ${clientName.toUpperCase()}`, {
     x: MARGIN_X,
-    y: y - 15,
-    width: TABLE_WIDTH,
-    height: TABLE_HEADER_HEIGHT,
-    color: COLOR_HEADER_FILL,
-    borderColor: COLOR_BORDER,
-    borderWidth: 0.75,
+    y,
+    size: 10,
+    font: fonts.regular,
+    color: COLOR_TEXT,
   });
-  y -= 8;
-
-  drawCenteredText(page, "UNIT", MARGIN_X, COL_UNIT, y, fonts.bold, 9);
-  drawCenteredText(page, "Description", MARGIN_X + COL_UNIT, COL_DESC, y, fonts.bold, 9);
-  drawCenteredText(page, "Price", MARGIN_X + COL_UNIT + COL_DESC, COL_PRICE, y, fonts.bold, 9);
+  drawRightText(
+    page,
+    `DATE:${formatIssueDate(issueDate)}`,
+    MARGIN_X,
+    TABLE_WIDTH,
+    y,
+    fonts.regular,
+    10
+  );
+  return y - SECTION_CUSTOMER_HEIGHT;
 }
+
 function addPriceField(
   form: PDFForm,
   page: PDFPage,
@@ -188,6 +274,25 @@ function addPriceField(
     textColor: rgb(0, 0, 0),
   });
   field.setFontSize(fontSize);
+}
+
+function drawTableHeader(page: PDFPage, fonts: Fonts, y: number) {
+  page.drawRectangle({
+    x: MARGIN_X,
+    y: y - 15,
+    width: TABLE_WIDTH,
+    height: TABLE_HEADER_HEIGHT,
+    color: COLOR_HEADER_FILL,
+    borderColor: COLOR_BORDER,
+    borderWidth: 0.75,
+  });
+
+  const labelY = y - 8;
+  drawCenteredText(page, "UNIT", MARGIN_X, COL_UNIT, labelY, fonts.bold, 9);
+  drawCenteredText(page, "Description", MARGIN_X + COL_UNIT, COL_DESC, labelY, fonts.bold, 9);
+  drawCenteredText(page, "Price", MARGIN_X + COL_UNIT + COL_DESC, COL_PRICE, labelY, fonts.bold, 9);
+
+  return y - TABLE_HEADER_HEIGHT;
 }
 
 function drawTableRow(
@@ -259,14 +364,8 @@ function drawTableRow(
       rowHeight - 4
     );
   }
-}
-function documentHeight(items: RepairTemplateLineItem[]) {
-  return (
-      TABLE_HEADER_HEIGHT +
-      items.reduce((h, item) => h + itemRowHeight(item), 0) +
-      TABLE_HEADER_HEIGHT + // total row
-      FOOTER_BLOCK_HEIGHT
-  );
+
+  return y - rowHeight;
 }
 
 function drawTotalRow(
@@ -287,8 +386,9 @@ function drawTotalRow(
     borderColor: COLOR_BORDER,
     borderWidth: 0.75,
   });
-  y -= 8;
-  drawCenteredText(page, "TOTAL", MARGIN_X + COL_UNIT, COL_DESC, y, fonts.bold, 9);
+
+  const labelY = y - 8;
+  drawCenteredText(page, "TOTAL", MARGIN_X + COL_UNIT, COL_DESC, labelY, fonts.bold, 9);
 
   fields.total += 1;
   addPriceField(
@@ -297,45 +397,42 @@ function drawTotalRow(
     `${fields.prefix}_p${pageIndex}_total_${fields.total}`,
     total,
     MARGIN_X + COL_UNIT + COL_DESC + 2,
-    y,
+    labelY,
     COL_PRICE - 4,
     14,
     9
   );
+
+  return y - TABLE_HEADER_HEIGHT;
 }
 
 function drawFooterBlock(page: PDFPage, fonts: Fonts, y: number, representative: string) {
   page.drawText("Received the above unit in good order and condition.", {
     x: MARGIN_X + 180,
-    y: y,
+    y,
     size: 8,
     font: fonts.regular,
     color: COLOR_TEXT,
   });
-  y -= 80;
+
+  const sigY = y - 80;
 
   page.drawText(representative, {
     x: MARGIN_X + 8,
-    y: y + 8,
+    y: sigY + 8,
     size: 9,
     font: fonts.bold,
     color: COLOR_TEXT,
   });
   page.drawLine({
-    start: {
-      x: MARGIN_X + 8,
-      y: y + 8 - 2,
-    },
-    end: {
-      x: MARGIN_X + 8 + 110,
-      y: y + 8 - 2,
-    },
+    start: { x: MARGIN_X + 8, y: sigY + 6 },
+    end: { x: MARGIN_X + 118, y: sigY + 6 },
     thickness: 0.5,
     color: COLOR_TEXT,
   });
   page.drawText("JESEAN Representative", {
     x: MARGIN_X + 8,
-    y: y - 6,
+    y: sigY - 6,
     size: 8,
     font: fonts.regular,
     color: COLOR_TEXT,
@@ -343,207 +440,232 @@ function drawFooterBlock(page: PDFPage, fonts: Fonts, y: number, representative:
 
   page.drawText("Received by:", {
     x: MARGIN_X + TABLE_WIDTH - 150,
-    y: y + 54,
+    y: sigY + 54,
     size: 8,
     font: fonts.regular,
     color: COLOR_TEXT,
   });
   page.drawLine({
-    start: { x: MARGIN_X + TABLE_WIDTH - 170, y: y + 12 },
-    end: { x: MARGIN_X + TABLE_WIDTH - 8, y: y + 12 },
+    start: { x: MARGIN_X + TABLE_WIDTH - 170, y: sigY + 12 },
+    end: { x: MARGIN_X + TABLE_WIDTH - 8, y: sigY + 12 },
     color: COLOR_TEXT,
     thickness: 0.5,
   });
   page.drawText("Signature over Printed Name", {
     x: MARGIN_X + TABLE_WIDTH - 168,
-    y: y - 2,
+    y: sigY - 2,
     size: 7,
     font: fonts.regular,
     color: COLOR_TEXT,
   });
+
+  return sigY - FOOTER_BLOCK_HEIGHT + 80;
 }
 
-function bodyBounds(): PageLayout {
-  const bodyTopY = HEADER_BOTTOM_Y - 24;
-  const bodyBottomY = FOOTER_BLOCK_HEIGHT + TABLE_HEADER_HEIGHT + 8;
-  return { bodyTopY, bodyBottomY };
+function drawSectionDivider(page: PDFPage, y: number) {
+  page.drawLine({
+    start: { x: MARGIN_X, y },
+    end: { x: MARGIN_X + TABLE_WIDTH, y },
+    color: COLOR_BORDER,
+    thickness: 1,
+  });
 }
 
-function availableBodyHeight(layout: PageLayout) {
-  return layout.bodyTopY - layout.bodyBottomY;
-}
-
-function paginateItems(items: RepairTemplateLineItem[], maxHeight: number) {
-  const pages: RepairTemplateLineItem[][] = [];
-  let current: RepairTemplateLineItem[] = [];
-  let used = 0;
-
-  for (const item of items) {
-    const height = itemRowHeight(item);
-    if (current.length > 0 && used + height > maxHeight) {
-      pages.push(current);
-      current = [item];
-      used = height;
-      continue;
-    }
-    current.push(item);
-    used += height;
-  }
-
-  if (current.length > 0) pages.push(current);
-  return pages.length > 0 ? pages : [[]];
-}
-
-async function createStatementPage(
+async function drawDocumentSection(
   pdf: PDFDocument,
-  templateDoc: PDFDocument,
-  form: PDFForm,
+  page: PDFPage,
   fonts: Fonts,
+  form: PDFForm,
   fields: FieldCounter,
   pageIndex: number,
+  startY: number,
   input: {
     clientName: string;
     issueDate: Date;
-    representative: string;
     documentTitle: string;
-    pageItems: RepairTemplateLineItem[];
-    pageTotal: number;
-    isLastPage: boolean;
-    showContinued: boolean;
+    items: RepairTemplateLineItem[];
+    total: number;
+    representative: string;
+    includeCompanyHeader: boolean;
   }
 ) {
-  const [templatePage] = await pdf.copyPages(templateDoc, [0]);
-  pdf.addPage(templatePage);
-  pdf.registerFontkit(fontkit);
+  let y = startY;
 
-  const centuryBytes = await fs.readFile(
-    path.join(process.cwd(), "fonts", "CenturyGothic-Bold.ttf")
-  );
-
-  const centuryBold = await pdf.embedFont(centuryBytes);
-  const page = pdf.getPages()[pdf.getPageCount() - 1]!;
-
-  clearDynamicArea(page);
-
-  const layout = bodyBounds();
-  let y = layout.bodyTopY;
-
-  const title = input.showContinued
-    ? `${input.documentTitle} (continued)`
-    : input.documentTitle;
-
-  drawCenteredText(page, title, MARGIN_X, TABLE_WIDTH, y + 10, centuryBold, 15);
-
-  y -= 8;
-
-  drawCustomerLine(page, input.clientName, input.issueDate, fonts, y);
-  y -= 18;
-  drawTableHeader(page, fonts, y);
-  y -= ROW_HEIGHT;
-
-  for (let i = 0; i < input.pageItems.length; i++) {
-    const item = input.pageItems[i];
-    drawTableRow(page, item, fonts, y, form, fields, pageIndex, i);
-    y -= itemRowHeight(item);
+  if (input.includeCompanyHeader) {
+    y = await drawCompanyHeader(pdf, page, fonts, y);
+    y -= SECTION_GAP;
   }
 
-  if (input.isLastPage) {
-    y -= 4;
-    drawTotalRow(page, fonts, y, input.pageTotal, form, fields, pageIndex);
-    drawFooterBlock(page, fonts, y - 28, input.representative);
+  y = drawSectionTitle(page, input.documentTitle, y, fonts);
+  y = drawCustomerLine(page, input.clientName, input.issueDate, fonts, y);
+  y -= SECTION_GAP;
+  y = drawTableHeader(page, fonts, y);
+
+  for (let i = 0; i < input.items.length; i++) {
+    y = drawTableRow(page, input.items[i]!, fonts, y, form, fields, pageIndex, i);
   }
+
+  y -= 4;
+  y = drawTotalRow(page, fonts, y, input.total, form, fields, pageIndex);
+  y = drawFooterBlock(page, fonts, y - 28, input.representative);
+
+  return y;
 }
 
-async function appendDocumentPages(
-  pdf: PDFDocument,
-  templateDoc: PDFDocument,
-  form: PDFForm,
-  fonts: Fonts,
-  fieldPrefix: string,
-  input: {
-    clientName: string;
-    issueDate: Date;
-    representative: string;
-    documentTitle: string;
-    lineItems: RepairTemplateLineItem[];
-    pageTotal: number;
-  }
+async function buildPdf(
+  input: RepairBillingPdfInput,
+  billingItems: RepairTemplateLineItem[],
+  jobOrderItems: RepairTemplateLineItem[],
+  billingTotal: number,
+  jobOrderTotal: number,
+  combined: boolean
 ) {
-  const layout = bodyBounds();
-  const pages = paginateItems(input.lineItems, availableBodyHeight(layout));
-  const fields: FieldCounter = { prefix: fieldPrefix, price: 0, total: 0 };
-
-  for (let i = 0; i < pages.length; i++) {
-    await createStatementPage(pdf, templateDoc, form, fonts, fields, i, {
-      clientName: input.clientName,
-      issueDate: input.issueDate,
-      representative: input.representative,
-      documentTitle: input.documentTitle,
-      pageItems: pages[i]!,
-      pageTotal: input.pageTotal,
-      isLastPage: i === pages.length - 1,
-      showContinued: i > 0,
-    });
-  }
-}
-
-export async function generateRepairBillingPdfFromTemplate(
-  input: RepairBillingPdfInput
-): Promise<Buffer> {
   const representative =
     input.representativeName ??
     process.env.BILLING_REPRESENTATIVE_NAME ??
     "SUNDAY SETH A. ATUEL";
 
-  const catalog = input.diagnosisCatalog ?? [];
-  const billingBase = input.billingStatementItems?.length
-    ? input.billingStatementItems
-    : buildBillingStatementLineItems(input.repairs);
-  const jobOrderBase = input.jobOrderItems?.length
-    ? input.jobOrderItems
-    : buildJobOrderLineItems(input.repairs, catalog);
+  const billingTitle = input.documentTitle ?? "BILLING STATEMENT";
 
-  const billingLineItems = padLineItems(billingBase, MIN_ROWS);
-  const jobOrderLineItems = padLineItems(jobOrderBase, MIN_ROWS);
-
-  const billingTotal = repairBillingLineTotal(billingBase);
-  const jobOrderTotal = repairBillingLineTotal(jobOrderBase);
-
-  const templateBytes = await fs.readFile(TEMPLATE_PATH);
-  const templateDoc = await PDFDocument.load(templateBytes);
   const pdf = await PDFDocument.create();
-  const form = pdf.getForm();
+  pdf.registerFontkit(fontkit);
 
   const fonts: Fonts = {
     regular: await pdf.embedFont(StandardFonts.Helvetica),
     bold: await pdf.embedFont(StandardFonts.HelveticaBold),
   };
 
-  await appendDocumentPages(pdf, templateDoc, form, fonts, "billing", {
-    clientName: input.clientName,
-    issueDate: input.issueDate,
-    representative,
-    documentTitle: input.documentTitle ?? "BILLING STATEMENT",
-    lineItems: billingLineItems,
-    pageTotal: billingTotal,
-  });
+  const form = pdf.getForm();
 
-  await appendDocumentPages(pdf, templateDoc, form, fonts, "joborder", {
-    clientName: input.clientName,
-    issueDate: input.issueDate,
-    representative,
-    documentTitle: "JOB ORDER",
-    lineItems: jobOrderLineItems,
-    pageTotal: jobOrderTotal,
-  });
+  if (combined) {
+    const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    let y = PAGE_HEIGHT - MARGIN_TOP;
+
+    const billingFields: FieldCounter = { prefix: "billing", price: 0, total: 0 };
+    y = await drawDocumentSection(pdf, page, fonts, form, billingFields, 0, y, {
+      clientName: input.clientName,
+      issueDate: input.issueDate,
+      documentTitle: billingTitle,
+      items: billingItems,
+      total: billingTotal,
+      representative,
+      includeCompanyHeader: true,
+    });
+
+    const CENTER_Y = PAGE_HEIGHT / 2;
+
+    drawSectionDivider(page, CENTER_Y);
+
+    // Start Job Order below the center line
+    y = CENTER_Y - COMBINED_DIVIDER_HEIGHT - SECTION_GAP;
+
+    const jobFields: FieldCounter = { prefix: "joborder", price: 0, total: 0 };
+    await drawDocumentSection(pdf, page, fonts, form, jobFields, 0, y, {
+      clientName: input.clientName,
+      issueDate: input.issueDate,
+      documentTitle: "JOB ORDER",
+      items: jobOrderItems,
+      total: jobOrderTotal,
+      representative,
+      includeCompanyHeader: true,
+    });
+  } else {
+    const billingPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    const billingFields: FieldCounter = { prefix: "billing", price: 0, total: 0 };
+    await drawDocumentSection(
+      pdf,
+      billingPage,
+      fonts,
+      form,
+      billingFields,
+      0,
+      PAGE_HEIGHT - MARGIN_TOP,
+      {
+        clientName: input.clientName,
+        issueDate: input.issueDate,
+        documentTitle: billingTitle,
+        items: billingItems,
+        total: billingTotal,
+        representative,
+        includeCompanyHeader: true,
+      }
+    );
+
+    const jobPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    const jobFields: FieldCounter = { prefix: "joborder", price: 0, total: 0 };
+    await drawDocumentSection(
+      pdf,
+      jobPage,
+      fonts,
+      form,
+      jobFields,
+      0,
+      PAGE_HEIGHT - MARGIN_TOP,
+      {
+        clientName: input.clientName,
+        issueDate: input.issueDate,
+        documentTitle: "JOB ORDER",
+        items: jobOrderItems,
+        total: jobOrderTotal,
+        representative,
+        includeCompanyHeader: true,
+      }
+    );
+  }
 
   form.updateFieldAppearances(fonts.regular);
-
   return Buffer.from(await pdf.save());
+}
+
+export async function generateRepairBillingPdfFromTemplate(
+  input: RepairBillingPdfInput
+): Promise<Buffer> {
+  return generateRepairBillingPdf(input);
 }
 
 export async function generateRepairBillingPdf(
   input: RepairBillingPdfInput
 ): Promise<Buffer> {
-  return generateRepairBillingPdfFromTemplate(input);
+  const catalog = input.diagnosisCatalog ?? [];
+
+  const billingBase = input.billingStatementItems?.length
+    ? input.billingStatementItems
+    : buildBillingStatementLineItems(input.repairs);
+
+  const jobOrderBase = input.jobOrderItems?.length
+    ? input.jobOrderItems
+    : buildJobOrderLineItems(input.repairs, catalog);
+
+  const billingTotal = repairBillingLineTotal(billingBase);
+  const jobOrderTotal = repairBillingLineTotal(jobOrderBase);
+
+  const billingItems = padLineItems(billingBase, MIN_ROWS_SEPARATE);
+const jobOrderItems = padLineItems(jobOrderBase, MIN_ROWS_SEPARATE);
+
+const useCombinedPage = canCombineOnSinglePage(
+    billingItems,
+    jobOrderItems
+);
+
+if (useCombinedPage) {
+    return buildPdf(
+        input,
+        billingItems,
+        jobOrderItems,
+        billingTotal,
+        jobOrderTotal,
+        true
+    );
+}
+
+return buildPdf(
+    input,
+    billingItems,
+    jobOrderItems,
+    billingTotal,
+    jobOrderTotal,
+    false
+);
+
+  // return buildPdf(input, billingItems, jobOrderItems, billingTotal, jobOrderTotal, false);
 }
