@@ -3,6 +3,7 @@ export const PRINTER_MODELS = {
       "L120",
       "L121",
       "L220",
+      "L385",
       "L3110",
       "L3116",
       "L3150",
