@@ -41,7 +41,7 @@ const TABLE_HEADER_HEIGHT = 18;
 const COMPANY_HEADER_HEIGHT = 70;
 const SECTION_TITLE_HEIGHT = 22;
 const SECTION_CUSTOMER_HEIGHT = 10;
-const SECTION_GAP = 6;
+const SECTION_GAP = 0;
 const FOOTER_BLOCK_HEIGHT = 118;
 const COMBINED_DIVIDER_HEIGHT = 12;
 
@@ -279,7 +279,7 @@ function addPriceField(
 function drawTableHeader(page: PDFPage, fonts: Fonts, y: number) {
   page.drawRectangle({
     x: MARGIN_X,
-    y: y - 15,
+    y: y - 17,
     width: TABLE_WIDTH,
     height: TABLE_HEADER_HEIGHT,
     color: COLOR_HEADER_FILL,
@@ -305,54 +305,115 @@ function drawTableRow(
   pageIndex: number,
   rowIndex: number
 ) {
-  const descLines = item.description ? item.description.split("\n") : [""];
-  const rowHeight = itemRowHeight(item);
-  const rowBottom = y - rowHeight + 2;
+  const descLines =
+    item.description?.split("\n").filter((l) => l.trim().length > 0) ?? [""];
 
+  const rows = Math.max(1, descLines.length);
+
+  const totalHeight = rows * ROW_HEIGHT;
+  const rowBottom = y - totalHeight;
+
+  // ===== Outer Border =====
   page.drawRectangle({
     x: MARGIN_X,
     y: rowBottom,
     width: TABLE_WIDTH,
-    height: rowHeight,
+    height: totalHeight,
     borderColor: COLOR_BORDER,
     borderWidth: 0.5,
   });
 
+  // ===== Vertical Columns =====
   page.drawLine({
     start: { x: MARGIN_X + COL_UNIT, y: rowBottom },
-    end: { x: MARGIN_X + COL_UNIT, y: rowBottom + rowHeight },
-    color: COLOR_BORDER,
-    thickness: 0.5,
-  });
-  page.drawLine({
-    start: { x: MARGIN_X + COL_UNIT + COL_DESC, y: rowBottom },
-    end: { x: MARGIN_X + COL_UNIT + COL_DESC, y: rowBottom + rowHeight },
+    end: { x: MARGIN_X + COL_UNIT, y: y },
     color: COLOR_BORDER,
     thickness: 0.5,
   });
 
-  const midY = rowBottom + rowHeight / 2 - 3;
-  if (item.unitLabel) {
-    const unit = truncateText(item.unitLabel, fonts.regular, 8, COL_UNIT - 8);
-    drawCenteredText(page, unit, MARGIN_X, COL_UNIT, midY, fonts.regular, 8);
+  page.drawLine({
+    start: {
+      x: MARGIN_X + COL_UNIT + COL_DESC,
+      y: rowBottom,
+    },
+    end: {
+      x: MARGIN_X + COL_UNIT + COL_DESC,
+      y: y,
+    },
+    color: COLOR_BORDER,
+    thickness: 0.5,
+  });
+
+  // ===== Horizontal lines ONLY inside Description =====
+  for (let i = 1; i < rows; i++) {
+    const yy = y - i * ROW_HEIGHT;
+
+    page.drawLine({
+      start: {
+        x: MARGIN_X + COL_UNIT,
+        y: yy,
+      },
+      end: {
+        x: MARGIN_X + COL_UNIT + COL_DESC,
+        y: yy,
+      },
+      color: COLOR_BORDER,
+      thickness: 0.5,
+    });
   }
 
-  const descTopY = y - 11;
-  descLines.forEach((line, lineIndex) => {
-    const desc = truncateText(line, fonts.regular, 8, COL_DESC - 8);
+  // ===== UNIT centered vertically =====
+  if (item.unitLabel) {
+    const unit = truncateText(
+      item.unitLabel,
+      fonts.regular,
+      8,
+      COL_UNIT - 8
+    );
+
+    const unitY = rowBottom + totalHeight / 2 - 4;
+
     drawCenteredText(
       page,
-      desc,
+      unit,
+      MARGIN_X,
+      COL_UNIT,
+      unitY,
+      fonts.regular,
+      8
+    );
+  }
+
+  // ===== Description =====
+  descLines.forEach((line, index) => {
+    const text = truncateText(
+      line,
+      fonts.regular,
+      8,
+      COL_DESC - 8
+    );
+
+    const textY =
+      y -
+      index * ROW_HEIGHT -
+      ROW_HEIGHT / 2 -
+      3;
+
+    drawCenteredText(
+      page,
+      text,
       MARGIN_X + COL_UNIT,
       COL_DESC,
-      descTopY - lineIndex * DESC_LINE_HEIGHT,
+      textY,
       fonts.regular,
       8
     );
   });
 
+  // ===== PRICE merged vertically =====
   if (item.amount != null) {
-    fields.price += 1;
+    fields.price++;
+
     addPriceField(
       form,
       page,
@@ -361,11 +422,12 @@ function drawTableRow(
       MARGIN_X + COL_UNIT + COL_DESC + 2,
       rowBottom + 2,
       COL_PRICE - 4,
-      rowHeight - 4
+      totalHeight - 4,
+      8
     );
   }
 
-  return y - rowHeight;
+  return y - totalHeight;
 }
 
 function drawTotalRow(
@@ -396,8 +458,8 @@ function drawTotalRow(
     page,
     `${fields.prefix}_p${pageIndex}_total_${fields.total}`,
     total,
-    MARGIN_X + COL_UNIT + COL_DESC + 2,
-    labelY,
+    MARGIN_X + COL_UNIT + COL_DESC,
+    labelY-2,
     COL_PRICE - 4,
     14,
     9
@@ -499,15 +561,108 @@ async function drawDocumentSection(
   y = drawSectionTitle(page, input.documentTitle, y, fonts);
   y = drawCustomerLine(page, input.clientName, input.issueDate, fonts, y);
   y -= SECTION_GAP;
+
   y = drawTableHeader(page, fonts, y);
 
+  // ---------------------------------
+  // Draw actual items
+  // ---------------------------------
+
+  let rowsUsed = 0;
+
   for (let i = 0; i < input.items.length; i++) {
-    y = drawTableRow(page, input.items[i]!, fonts, y, form, fields, pageIndex, i);
+    const item = input.items[i]!;
+
+    const lineCount = Math.max(
+      1,
+      item.description
+        ? item.description
+            .split("\n")
+            .filter((l) => l.trim().length > 0).length
+        : 1
+    );
+
+    rowsUsed += lineCount;
+
+    y = drawTableRow(
+      page,
+      item,
+      fonts,
+      y,
+      form,
+      fields,
+      pageIndex,
+      i
+    );
   }
 
+  // ---------------------------------
+  // Draw blank rows until minimum reached
+  // ---------------------------------
+
+  const blankRows = Math.max(0, MIN_ROWS_SEPARATE - rowsUsed);
+
+  for (let i = 0; i < blankRows; i++) {
+    const rowBottom = y - ROW_HEIGHT;
+
+    page.drawRectangle({
+      x: MARGIN_X,
+      y: rowBottom,
+      width: TABLE_WIDTH,
+      height: ROW_HEIGHT,
+      borderColor: COLOR_BORDER,
+      borderWidth: 0.5,
+    });
+
+    page.drawLine({
+      start: { x: MARGIN_X + COL_UNIT, y: rowBottom },
+      end: { x: MARGIN_X + COL_UNIT, y },
+      color: COLOR_BORDER,
+      thickness: 0.5,
+    });
+
+    page.drawLine({
+      start: {
+        x: MARGIN_X + COL_UNIT + COL_DESC,
+        y: rowBottom,
+      },
+      end: {
+        x: MARGIN_X + COL_UNIT + COL_DESC,
+        y,
+      },
+      color: COLOR_BORDER,
+      thickness: 0.5,
+    });
+
+    y -= ROW_HEIGHT;
+  }
+
+  // ---------------------------------
+  // Total row
+  // ---------------------------------
+
   y -= 4;
-  y = drawTotalRow(page, fonts, y, input.total, form, fields, pageIndex);
-  y = drawFooterBlock(page, fonts, y - 28, input.representative);
+
+  y = drawTotalRow(
+    page,
+    fonts,
+    y,
+    input.total,
+    form,
+    fields,
+    pageIndex
+  );
+
+  // ---------------------------------
+  // Footer
+  // ---------------------------------
+
+  y = drawFooterBlock(
+    page,
+    fonts,
+    y - 28,
+    input.representative
+  );
 
   return y;
 }
@@ -639,8 +794,10 @@ export async function generateRepairBillingPdf(
   const billingTotal = repairBillingLineTotal(billingBase);
   const jobOrderTotal = repairBillingLineTotal(jobOrderBase);
 
-  const billingItems = padLineItems(billingBase, MIN_ROWS_SEPARATE);
-const jobOrderItems = padLineItems(jobOrderBase, MIN_ROWS_SEPARATE);
+//   const billingItems = padLineItems(billingBase, MIN_ROWS_SEPARATE);
+// const jobOrderItems = padLineItems(jobOrderBase, MIN_ROWS_SEPARATE);
+const billingItems = billingBase;
+const jobOrderItems = jobOrderBase;
 
 const useCombinedPage = canCombineOnSinglePage(
     billingItems,

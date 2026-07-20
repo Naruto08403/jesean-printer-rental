@@ -131,7 +131,7 @@ export function buildBillingStatementLineItems(
 ): RepairTemplateLineItem[] {
   return repairs.map((repair) => {
     const diagnoses = parseDiagnosisItems(repair.diagnosis, repairDisplayTitle(repair));
-    const wrapped = wrapDiagnosisCommaSeparated(diagnoses, 50);
+    const wrapped = wrapDiagnosisCommaSeparated(diagnoses, 70);
 
     return {
       unitLabel: formatRepairUnitLabel(repair),
