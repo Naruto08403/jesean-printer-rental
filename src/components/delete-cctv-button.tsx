@@ -18,7 +18,6 @@ export function DeleteCctvButton({
     <Button
       type="button"
       variant="danger"
-      size="sm"
       loading={pending}
       onClick={() => {
         const confirmed = window.confirm(
