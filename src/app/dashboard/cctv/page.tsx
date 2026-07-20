@@ -57,9 +57,9 @@ export default async function CctvPage() {
                 <tr
                   key={j.id}
                   data-search-row
-                  data-search={toSearchText(
+                  ddata-search={toSearchText(
                     j.clientName,
-                    j.dateStarted,
+                    j.dateStarted ? formatDate(j.dateStarted) : "",
                     j.description,
                     formatCurrency(j.totalAmount),
                     j.status,
@@ -98,16 +98,16 @@ export default async function CctvPage() {
                     </Link>
                     <DeleteCctvButton id={j.id} clientName={j.clientName ?? "Unknown"} />
                     <EditCctvModal
-                          job={{
-                            id: j.id,
-                            status: j.status,
-                            totalAmount: Number(j.totalAmount),
-                            siteAddress: j.siteAddress ?? "",
-                            description: j.description ?? "",
-                            dateStarted: j.dateStarted,
-                            dateCompleted: j.dateCompleted,
-                          }}
-                        />
+                        job={{
+                          id: j.id,
+                          status: j.status,
+                          totalAmount: Number(j.totalAmount),
+                          siteAddress: j.siteAddress ?? "",
+                          description: j.description ?? "",
+                          dateStarted: j.dateStarted?.toISOString() ?? "",
+                          dateCompleted: j.completedAt?.toISOString() ?? null,
+                        }}
+                      />
                   </td>
                 </tr>
               );

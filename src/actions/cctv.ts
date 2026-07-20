@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import type { ServiceStatus } from "@prisma/client";
+import { formatDate } from "@/lib/utils";
 
 export async function createCctv(formData: FormData) {
   await requireAdmin();
@@ -28,13 +29,11 @@ export async function updateCctvStatus(
   id: string,
   status: ServiceStatus,
   totalAmount: number,
-  dateStarted: Date,
+  dateStarted: Date | null,
   completedAt: Date | null,
   siteAddress: string,
   description: string
 ) {
-  await requireAdmin();
-
   await prisma.cctvInstallation.update({
     where: { id },
     data: {
@@ -46,6 +45,7 @@ export async function updateCctvStatus(
       description,
     },
   });
+
 
   revalidatePath("/dashboard/cctv");
   revalidatePath(`/dashboard/cctv/${id}`);

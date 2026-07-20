@@ -19,8 +19,8 @@ type EditCctvModalProps = {
     totalAmount: number;
     siteAddress: string;
     description: string;
-    dateStarted: Date;
-    dateCompleted: Date | null;
+    dateStarted: string;
+    dateCompleted: string;
   };
 };
 
@@ -30,12 +30,20 @@ export function EditCctvModal({ job }: EditCctvModalProps) {
   const router = useRouter();
   const [status, setStatus] = useState<ServiceStatus>(job.status);
     const [totalAmount, setTotalAmount] = useState(job.totalAmount);
-    const [dateStarted, setDateStarted] = useState(job.dateStarted);
+    // const [dateStarted, setDateStarted] = useState(job.dateStarted);
+    // const [dateCompleted, setDateCompleted] = useState<Date | null>(
+    // job.dateCompleted
+    // );
+    const [dateStarted, setDateStarted] = useState<Date>(
+      new Date(job.dateStarted)
+    );
+    
     const [dateCompleted, setDateCompleted] = useState<Date | null>(
-    job.dateCompleted
+      job.dateCompleted ? new Date(job.dateCompleted) : null
     );
     const [siteAddress, setSiteAddress] = useState(job.siteAddress);
     const [description, setDescription] = useState(job.description);
+    
 
   return (
     <>
