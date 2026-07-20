@@ -31,13 +31,13 @@ export default async function CctvDetailPage({
     await updateCctvStatus(
       id,
       formData.get("status") as ServiceStatus,
-      Number(formData.get("totalAmount")),
-      new Date(String(formData.get("dateStarted"))),
+      job!.totalAmount,
+      job!.dateStarted,
       formData.get("completedAt")
         ? new Date(String(formData.get("completedAt")))
-        : null,
-      String(formData.get("siteAddress") ?? ""),
-      String(formData.get("description") ?? "")
+        : job!.completedAt,
+      job!.siteAddress ?? "",
+      job!.description ?? ""
     );
   }
 

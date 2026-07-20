@@ -68,7 +68,8 @@ export default async function CctvPage() {
                   className="border-b border-slate-50 hover:bg-slate-50/50"
                 >
                   <td className="px-4 py-3 font-medium">{j.clientName}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatDate(j.dateStarted)}</td>
+                  <td className="px-4 py-3 text-slate-600">{j.dateStarted ? formatDate(j.dateStarted) : "—"}</td>
+                  
                   <td className="max-w-[180px] truncate px-4 py-3 text-slate-600">
                     {j.description ?? "—"}
                   </td>
@@ -105,7 +106,7 @@ export default async function CctvPage() {
                           siteAddress: j.siteAddress ?? "",
                           description: j.description ?? "",
                           dateStarted: j.dateStarted?.toISOString() ?? "",
-                          dateCompleted: j.completedAt?.toISOString() ?? null,
+                          dateCompleted: j.completedAt?.toISOString() ?? "",
                         }}
                       />
                   </td>
