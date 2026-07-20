@@ -46,7 +46,6 @@ export async function GET(request: Request) {
   const ws = workbook.addWorksheet(`Rentals ${year}`);
 
   ws.pageSetup = {
-    paperSize: 8,
     orientation: "landscape",
     fitToPage: true,
     fitToWidth: 1,
