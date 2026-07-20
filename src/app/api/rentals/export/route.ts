@@ -7,6 +7,11 @@ import {
   isFutureMonth,
 } from "@/lib/rental-annual";
 
+const monthNames = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 function peso(value: number) {
   return Number(value.toFixed(2));
 }
@@ -37,16 +42,24 @@ export async function GET(request: Request) {
   workbook.company = "Printer Rental System";
   workbook.created = new Date();
 
+
   const ws = workbook.addWorksheet(`Rentals ${year}`);
 
-  ws.views = [
-    {
-      state: "frozen",
-      xSplit: 2,
-      ySplit: 1,
+  ws.pageSetup = {
+    paperSize: 8,
+    orientation: "landscape",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 0.3,
+      right: 0.3,
+      top: 0.5,
+      bottom: 0.5,
+      header: 0.2,
+      footer: 0.2,
     },
-  ];
-
+  };
   ws.columns = [
     { header: "Client", key: "client", width: 35 },
     { header: "Units", key: "units", width: 10 },
@@ -68,7 +81,77 @@ export async function GET(request: Request) {
     { header: "Status", key: "status", width: 15 },
   ];
 
-  const header = ws.getRow(1);
+
+  ws.views = [
+    {
+      state: "frozen",
+      xSplit: 2,
+      ySplit: 4,
+    },
+  ];
+  const now = new Date();
+
+const monthName = monthNames[now.getMonth()];
+
+ws.insertRow(1, []);
+ws.insertRow(2, []);
+ws.insertRow(3, []);
+ws.mergeCells("A1:P1");
+const title = ws.getCell("A1");
+
+title.value = "PRINTER RENTAL ANNUAL REPORT";
+
+title.font = {
+  bold: true,
+  size: 18,
+};
+
+title.alignment = {
+  horizontal: "center",
+  vertical: "middle",
+};
+
+title.fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: {
+    argb: "1E40AF",
+  },
+};
+
+title.font = {
+  bold: true,
+  size: 18,
+  color: {
+    argb: "FFFFFFFF",
+  },
+};
+ws.mergeCells("A2:P2");
+
+const info = ws.getCell("A2");
+
+info.value =
+  `Current Month: ${monthName}    |    Current Year: ${year}    |    Status: Active`;
+
+info.font = {
+  bold: true,
+  size: 11,
+};
+
+info.alignment = {
+  horizontal: "center",
+};
+
+info.fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: {
+    argb: "D9EAD3",
+  },
+};
+
+  
+  const header = ws.getRow(4);
 
   header.height = 24;
 
@@ -113,7 +196,6 @@ export async function GET(request: Request) {
 
   let totalUnits = 0;
   let grandTotal = 0;
-
   for (const row of rows) {
     totalUnits += row.unitCount;
     grandTotal += row.yearPaid;
@@ -140,25 +222,19 @@ export async function GET(request: Request) {
 
       if (cell.state === "paused") {
         excelRow[`m${index}`] =
-          cell.paid > 0
-            ? peso(cell.paid)
-            : "Pause";
+          cell.paid > 0 ? peso(cell.paid) : "Pause";
         return;
       }
 
       if (cell.state === "stopped") {
         excelRow[`m${index}`] =
-          cell.paid > 0
-            ? peso(cell.paid)
-            : "Stop";
+          cell.paid > 0 ? peso(cell.paid) : "Stop";
         return;
       }
 
       if (cell.state === "running") {
         excelRow[`m${index}`] =
-          cell.paid > 0
-            ? peso(cell.paid)
-            : "Run";
+          cell.paid > 0 ? peso(cell.paid) : "Run";
         return;
       }
 
@@ -168,8 +244,7 @@ export async function GET(request: Request) {
       }
 
       if (cell.expected != null) {
-        excelRow[`m${index}`] =
-          `Due ${peso(cell.expected)}`;
+        excelRow[`m${index}`] = `Due ${peso(cell.expected)}`;
         return;
       }
 
@@ -177,173 +252,200 @@ export async function GET(request: Request) {
     });
 
     const added = ws.addRow(excelRow);
+
     added.eachCell((cell, col) => {
-        cell.border = {
-          top: { style: "thin", color: { argb: "DDDDDD" } },
-          bottom: { style: "thin", color: { argb: "DDDDDD" } },
-          left: { style: "thin", color: { argb: "DDDDDD" } },
-          right: { style: "thin", color: { argb: "DDDDDD" } },
-        };
-  
-        if (col === 1) {
-          cell.font = {
-            bold: true,
-          };
-        }
-  
-        if (col >= 3 && col <= 14) {
-          const month = row.months[col - 3];
-  
-          cell.alignment = {
-            horizontal: "center",
-            vertical: "middle",
-          };
-  
-          if (month.paid > 0) {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: {
-                argb: "C6EFCE",
-              },
-            };
-  
-            cell.font = {
-              color: {
-                argb: "006100",
-              },
-              bold: true,
-            };
-          } else if (month.state === "expected") {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: {
-                argb: "FFC7CE",
-              },
-            };
-  
-            cell.font = {
-              color: {
-                argb: "9C0006",
-              },
-              bold: true,
-            };
-          } else if (
-            month.state === "paused" ||
-            month.state === "stopped"
-          ) {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: {
-                argb: "FFF2CC",
-              },
-            };
-  
-            cell.font = {
-              color: {
-                argb: "7F6000",
-              },
-              bold: true,
-            };
-          } else if (
-            month.state === "running"
-          ) {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: {
-                argb: "D9EAD3",
-              },
-            };
-  
-            cell.font = {
-              color: {
-                argb: "274E13",
-              },
-            };
-          } else {
-            cell.font = {
-              color: {
-                argb: "808080",
-              },
-            };
-          }
-        }
-  
-        if (col === 15) {
-          cell.numFmt = '#,##0.00';
-          cell.font = {
-            bold: true,
-          };
-        }
-      });
-    }
-  
-    const totalRow = ws.addRow({
-      client: "TOTAL",
-      units: totalUnits,
-      m0: peso(monthTotals[0]),
-      m1: peso(monthTotals[1]),
-      m2: peso(monthTotals[2]),
-      m3: peso(monthTotals[3]),
-      m4: peso(monthTotals[4]),
-      m5: peso(monthTotals[5]),
-      m6: peso(monthTotals[6]),
-      m7: peso(monthTotals[7]),
-      m8: peso(monthTotals[8]),
-      m9: peso(monthTotals[9]),
-      m10: peso(monthTotals[10]),
-      m11: peso(monthTotals[11]),
-      total: peso(grandTotal),
-      status: "",
-    });
-  
-    totalRow.eachCell((cell) => {
-      cell.font = {
-        bold: true,
-      };
-  
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: {
-          argb: "D9EAD3",
-        },
-      };
-  
       cell.border = {
-        top: { style: "medium" },
-        bottom: { style: "medium" },
-        left: { style: "thin" },
-        right: { style: "thin" },
+        top: { style: "thin", color: { argb: "DDDDDD" } },
+        bottom: { style: "thin", color: { argb: "DDDDDD" } },
+        left: { style: "thin", color: { argb: "DDDDDD" } },
+        right: { style: "thin", color: { argb: "DDDDDD" } },
       };
-  
-      cell.alignment = {
-        horizontal: "center",
-        vertical: "middle",
-      };
-    });
-  
-    ws.autoFilter = {
-      from: {
-        row: 1,
-        column: 1,
-      },
-      to: {
-        row: 1,
-        column: 16,
-      },
-    };
-  
-    const buffer = await workbook.xlsx.writeBuffer();
-  
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename=Rental-Annual-${year}.xlsx`,
-      },
+
+      if (col === 1) {
+        cell.font = {
+          bold: true,
+        };
+      }
+
+      if (col >= 3 && col <= 14) {
+        const month = row.months[col - 3];
+
+        cell.alignment = {
+          horizontal: "center",
+          vertical: "middle",
+        };
+
+        if (month.paid > 0) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: {
+              argb: "C6EFCE",
+            },
+          };
+
+          cell.font = {
+            color: {
+              argb: "006100",
+            },
+            bold: true,
+          };
+        } else if (month.state === "expected") {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: {
+              argb: "FFC7CE",
+            },
+          };
+
+          cell.font = {
+            color: {
+              argb: "9C0006",
+            },
+            bold: true,
+          };
+        } else if (
+          month.state === "paused" ||
+          month.state === "stopped"
+        ) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: {
+              argb: "FFF2CC",
+            },
+          };
+
+          cell.font = {
+            color: {
+              argb: "7F6000",
+            },
+            bold: true,
+          };
+        } else if (month.state === "running") {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: {
+              argb: "D9EAD3",
+            },
+          };
+
+          cell.font = {
+            color: {
+              argb: "274E13",
+            },
+          };
+        } else {
+          cell.font = {
+            color: {
+              argb: "808080",
+            },
+          };
+        }
+      }
+
+      // Total column
+      if (col === 15) {
+        cell.numFmt = '#,##0.00';
+        cell.font = {
+          bold: true,
+        };
+      }
+
+      // Units column
+      if (col === 2) {
+        cell.alignment = {
+          horizontal: "center",
+          vertical: "middle",
+        };
+      }
+
+      // Status column
+      if (col === 16) {
+        cell.alignment = {
+          horizontal: "center",
+          vertical: "middle",
+        };
+      }
     });
   }
+
+  // ===========================
+  // TOTAL ROW
+  // ===========================
+
+  const totalRow = ws.addRow({
+    client: "TOTAL",
+    units: totalUnits,
+    m0: peso(monthTotals[0]),
+    m1: peso(monthTotals[1]),
+    m2: peso(monthTotals[2]),
+    m3: peso(monthTotals[3]),
+    m4: peso(monthTotals[4]),
+    m5: peso(monthTotals[5]),
+    m6: peso(monthTotals[6]),
+    m7: peso(monthTotals[7]),
+    m8: peso(monthTotals[8]),
+    m9: peso(monthTotals[9]),
+    m10: peso(monthTotals[10]),
+    m11: peso(monthTotals[11]),
+    total: peso(grandTotal),
+    status: "",
+  });
+
+  totalRow.height = 24;
+
+  totalRow.eachCell((cell, col) => {
+    cell.font = {
+      bold: true,
+    };
+
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "D9EAD3",
+      },
+    };
+
+    cell.border = {
+      top: { style: "medium" },
+      bottom: { style: "medium" },
+      left: { style: "thin" },
+      right: { style: "thin" },
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+    };
+
+    if (col >= 3 && col <= 15) {
+      cell.numFmt = "#,##0.00";
+    }
+  });
+
+  // Header row is row 4
+  ws.autoFilter = {
+    from: {
+      row: 4,
+      column: 1,
+    },
+    to: {
+      row: 4,
+      column: 16,
+    },
+  };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  return new NextResponse(buffer, {
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename=Rental-Annual-${year}.xlsx`,
+    },
+  });
+}

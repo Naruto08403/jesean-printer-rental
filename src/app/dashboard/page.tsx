@@ -20,7 +20,7 @@ export default async function DashboardPage() {
         rental: { include: { client: true } },
         repair: { include: { client: true } },
         sale: { include: { client: true } },
-        cctvInstallation: { include: { client: true } },
+        cctvInstallation: {  },
       },
     }),
   ]);
@@ -93,7 +93,7 @@ export default async function DashboardPage() {
                 p.repair?.client?.name ??
                 p.repair?.customerName ??
                 p.sale?.client?.name ??
-                p.cctvInstallation?.client.name ??
+                p.cctvInstallation?.clientName ??
                 "—";
               const type = p.rentalId
                 ? "Rental"
