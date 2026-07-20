@@ -53,7 +53,7 @@ export type PortalClientData = {
   rentals: RentalWithRelations[];
   repairs: RepairWithRelations[];
   sales: SaleWithRelations[];
-  cctvJobs: CctvWithRelations[];
+  // cctvJobs: CctvWithRelations[];
   notifications: PortalNotification[];
   stats: {
     activeRentals: number;
@@ -172,7 +172,7 @@ export function buildPortalNotifications(data: {
   rentals: RentalWithRelations[];
   repairs: RepairWithRelations[];
   sales: SaleWithRelations[];
-  cctvJobs: CctvWithRelations[];
+  // cctvJobs: CctvWithRelations[];
 }): PortalNotification[] {
   const notifications: PortalNotification[] = [];
   const currentYear = defaultRentalAnnualYear();
