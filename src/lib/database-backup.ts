@@ -134,8 +134,8 @@ type BackupSale = {
 
 type BackupCctvInstallation = {
   id: string;
-  clientId: string;
   status: string;
+  clientName:string;
   siteAddress: string | null;
   description: string | null;
   totalAmount: number;
