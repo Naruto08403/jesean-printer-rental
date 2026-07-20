@@ -57,19 +57,19 @@ export default async function PortalPaymentsPage() {
       });
     }
   }
-  for (const job of data.cctvJobs) {
-    for (const p of job.payments) {
-      payments.push({
-        id: p.id,
-        amount: p.amount,
-        paidAt: p.paidAt,
-        method: p.method,
-        reference: p.reference,
-        type: "CCTV",
-        label: job.siteAddress ?? "CCTV installation",
-      });
-    }
-  }
+  // for (const job of data.cctvJobs) {
+  //   for (const p of job.payments) {
+  //     payments.push({
+  //       id: p.id,
+  //       amount: p.amount,
+  //       paidAt: p.paidAt,
+  //       method: p.method,
+  //       reference: p.reference,
+  //       type: "CCTV",
+  //       label: job.siteAddress ?? "CCTV installation",
+  //     });
+  //   }
+  // }
 
   payments.sort((a, b) => b.paidAt.getTime() - a.paidAt.getTime());
   const lifetimeTotal = payments.reduce((sum, p) => sum + p.amount, 0);
