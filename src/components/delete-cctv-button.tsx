@@ -17,7 +17,7 @@ export function DeleteCctvButton({
   return (
     <Button
       type="button"
-      variant="destructive"
+      variant="danger"
       size="sm"
       loading={pending}
       onClick={() => {
