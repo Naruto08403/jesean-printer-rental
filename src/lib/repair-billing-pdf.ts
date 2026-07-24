@@ -82,7 +82,36 @@ function formatPrice(amount: number) {
 function formatIssueDate(d: Date) {
   return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 }
+function truncateMiddle(
+  text: string,
+  font: PDFFont,
+  size: number,
+  maxWidth: number
+) {
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) {
+    return text;
+  }
 
+  let left = Math.ceil(text.length / 2);
+  let right = text.length - left;
+
+  while (left > 1 && right > 1) {
+    const result =
+      text.slice(0, left) + "..." + text.slice(text.length - right);
+
+    if (font.widthOfTextAtSize(result, size) <= maxWidth) {
+      return result;
+    }
+
+    if (left >= right) {
+      left--;
+    } else {
+      right--;
+    }
+  }
+
+  return text.slice(0, 4) + "...";
+}
 function truncateText(text: string, font: PDFFont, size: number, maxWidth: number) {
   if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
   let trimmed = text;
@@ -364,7 +393,7 @@ function drawTableRow(
 
   // ===== UNIT centered vertically =====
   if (item.unitLabel) {
-    const unit = truncateText(
+    const unit = truncateMiddle(
       item.unitLabel,
       fonts.regular,
       8,
@@ -386,7 +415,7 @@ function drawTableRow(
 
   // ===== Description =====
   descLines.forEach((line, index) => {
-    const text = truncateText(
+    const text = truncateMiddle(
       line,
       fonts.regular,
       8,

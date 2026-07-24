@@ -136,7 +136,7 @@ function MonthCellView({
         </span>
   
         {cell.reference &&
-          cell.reference !== "12345" && (
+          cell.reference !== "12345" && cell.reference !== "123456" && (
             <span className="text-[10px] text-slate-500">
               OR#: {cell.reference}
             </span>

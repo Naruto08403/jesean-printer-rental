@@ -81,14 +81,30 @@ export function formatRepairUnitLabel(repair: {
   brand?: string | null;
   model?: string | null;
   serialNumber?: string | null;
-  printer?: { brand: string | null; model: string | null; serialNumber: string | null } | null;
+  printer?: {
+    brand: string | null;
+    model: string | null;
+    serialNumber: string | null;
+  } | null;
 }): string {
   const brand = repair.brand ?? repair.printer?.brand;
-  const serial = repair.serialNumber ?? repair.printer?.serialNumber;
-  if (brand && serial) return `${brand.toUpperCase()} SN:${serial}`;
-  if (brand) return brand.toUpperCase();
   const model = repair.model ?? repair.printer?.model;
-  if (model) return model.toUpperCase();
+  const serial = repair.serialNumber ?? repair.printer?.serialNumber;
+
+  const brandModel = [brand, model].filter(Boolean).join(" ");
+
+  if (brandModel && serial) {
+    return `${brandModel.toUpperCase()}: S# ${serial}`;
+  }
+
+  if (brandModel) {
+    return brandModel.toUpperCase();
+  }
+
+  if (serial) {
+    return `S# ${serial}`;
+  }
+
   return "";
 }
 
