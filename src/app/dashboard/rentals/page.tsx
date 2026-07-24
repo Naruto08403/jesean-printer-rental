@@ -109,6 +109,7 @@ export default async function RentalsPage() {
       paidAt: p.paidAt.toISOString(),
       billingYear: p.billingYear,
       billingMonth: p.billingMonth,
+      reference:p.reference,
     })),
     pausePeriods: r.pausePeriods.map((pp) => ({
       pausedAt: pp.pausedAt.toISOString(),

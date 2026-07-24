@@ -42,6 +42,7 @@ type RentalInput = {
     paidAt: string;
     billingYear?: number | null;
     billingMonth?: number | null;
+    reference?:string | null;
   }[];
 };
 
@@ -59,6 +60,7 @@ function toRentalLike(r: RentalInput) {
       paidAt: new Date(p.paidAt),
       billingYear: p.billingYear,
       billingMonth: p.billingMonth,
+      reference:p.reference,
     })),
   };
 }
@@ -74,6 +76,7 @@ function MonthCellView({
   cell: RentalAnnualRow["months"][0];
   year: number;
 }) {
+  // console.log("MonthCell:", cell);
   if (cell.state === "out") {
     return <span className="text-slate-300">—</span>;
   }
@@ -115,11 +118,30 @@ function MonthCellView({
       </span>
     );
   }
+  // if (cell.paid > 0) {
+  //   return (
+  //     <span className={paidAmountClass()} title="Payment recorded for this month">
+  //       {formatCurrency(cell.paid)}
+  //     </span>
+  //   );
+  // }
   if (cell.paid > 0) {
     return (
-      <span className={paidAmountClass()} title="Payment recorded for this month">
-        {formatCurrency(cell.paid)}
-      </span>
+      <div className="flex flex-col items-center">
+        <span
+          className={paidAmountClass()}
+          title="Payment recorded for this month"
+        >
+          {formatCurrency(cell.paid)}
+        </span>
+  
+        {cell.reference &&
+          cell.reference !== "12345" && (
+            <span className="text-[10px] text-slate-500">
+              OR#: {cell.reference}
+            </span>
+        )}
+      </div>
     );
   }
   if (cell.state === "expected" && cell.expected != null) {

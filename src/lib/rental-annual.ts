@@ -24,6 +24,7 @@ export type MonthCell = {
   month: number;
   label: string;
   paid: number;
+  reference?: string | null;
   expected: number | null;
   state: "empty" | "expected" | "paid" | "partial" | "paused" | "stopped" | "out" | "running";
 };
@@ -92,6 +93,7 @@ export type RentalPaymentLike = {
   paidAt: Date;
   billingYear?: number | null;
   billingMonth?: number | null;
+  reference?: string | null;
 };
 
 export type RentalBillingLike = Pick<
@@ -287,7 +289,28 @@ export function paymentsInMonth(
     .filter((p) => paymentAppliesToBillingMonth(p, year, month))
     .reduce((sum, p) => sum + p.amount, 0);
 }
+export function paymentReferenceInMonth(
+  payments: RentalPaymentLike[],
+  year: number,
+  month: number
+): string | null {
+  // console.log("Looking for:", year, month);
 
+  const payment = payments.find((p) => {
+    // console.log(
+    //   p.billingYear,
+    //   p.billingMonth,
+    //   "==>",
+    //   p.billingYear === year && p.billingMonth === month
+    // );
+
+    return paymentAppliesToBillingMonth(p, year, month);
+  });
+
+  // console.log("Matched payment:", payment);
+
+  return payment?.reference ?? null;
+}
 /** Months in range that are billable and have no payment yet (admin may record early). */
 export function unpaidBillableMonths(
   rental: RentalBillingLike,
@@ -321,16 +344,24 @@ export function buildRentalAnnualRow(
 
   const months: MonthCell[] = MONTH_LABELS.map((label, month) => {
     const paid = paymentsInMonth(rental.payments, year, month);
+    // console.log("Payments:", rental.payments);
+    
+    const reference = paymentReferenceInMonth(
+      rental.payments,
+      year,
+      month
+    );
+    // console.log("Reference:", reference);
 
     if (rental.status === "COMPLETED" || rental.status === "CANCELLED") {
       if (monthHasPayment(paid)) {
-        return { month, label, paid, expected: null, state: "paid" as const };
+        return { month, label, paid,reference, expected: null, state: "paid" as const };
       }
-      return { month, label, paid: 0, expected: null, state: "out" as const };
+      return { month, label, paid: 0,reference, expected: null, state: "out" as const };
     }
 
     if (!isMonthInContract(rental, year, month, now)) {
-      return { month, label, paid: 0, expected: null, state: "out" as const };
+      return { month, label, paid: 0,reference, expected: null, state: "out" as const };
     }
 
     if (rental.status === "PAUSED" || isMonthPausedByHistory(rental, year, month)) {
@@ -338,6 +369,7 @@ export function buildRentalAnnualRow(
         month,
         label,
         paid,
+        reference,
         expected: isBillingMonth(rental.paymentSchedule, month)
           ? payable
           : null,
@@ -352,7 +384,7 @@ export function buildRentalAnnualRow(
         ? resolveBillingMonthState(rental, year, month, paid, payable, now)
         : "empty";
 
-    return { month, label, paid, expected, state };
+    return { month, label, paid,reference, expected, state, };
   });
 
   const yearPaid = months.reduce((s, m) => s + m.paid, 0);
@@ -390,13 +422,14 @@ function groupStatus(statuses: RentalStatus[]): RentalStatus {
 function mergeClientMonthCells(allCells: MonthCell[], billingCells: MonthCell[]): MonthCell {
   const { month, label } = allCells[0];
   const paid = allCells.reduce((s, c) => s + c.paid, 0);
+  const reference = allCells.find((c) => c.reference)?.reference ?? null;
   const inContract = billingCells.filter((c) => c.state !== "out");
 
   if (inContract.length === 0) {
     if (monthHasPayment(paid)) {
-      return { month, label, paid, expected: null, state: "paid" };
+      return { month, label, paid,reference, expected: null, state: "paid" };
     }
-    return { month, label, paid: 0, expected: null, state: "out" };
+    return { month, label, paid: 0,reference, expected: null, state: "out" };
   }
 
   const dueAmount = inContract
@@ -421,24 +454,24 @@ function mergeClientMonthCells(allCells: MonthCell[], billingCells: MonthCell[])
     billingPaused.length === inContract.filter((c) => c.expected != null).length;
 
   if (expected != null && monthHasPayment(paid)) {
-    return { month, label, paid, expected, state: "paid" };
+    return { month, label, paid,reference, expected, state: "paid" };
   }
   if (inContract.some((c) => c.state === "expected")) {
-    return { month, label, paid, expected, state: "expected" };
+    return { month, label, paid,reference, expected, state: "expected" };
   }
   if (inContract.some((c) => c.state === "paid" || c.state === "partial")) {
-    return { month, label, paid, expected, state: "paid" };
+    return { month, label, paid,reference, expected, state: "paid" };
   }
   if (allBillingPaused && expected != null) {
-    return { month, label, paid, expected, state: "paused" };
+    return { month, label, paid,reference, expected, state: "paused" };
   }
   if (inContract.some((c) => c.state === "running")) {
     return { month, label, paid, expected, state: "running" };
   }
   if (expected != null) {
-    return { month, label, paid, expected, state: "expected" };
+    return { month, label, paid,reference, expected, state: "expected" };
   }
-  return { month, label, paid, expected, state: "empty" };
+  return { month, label, paid,reference, expected, state: "empty" };
 }
 
 function applyClientStoppedMonths(months: MonthCell[]): MonthCell[] {
