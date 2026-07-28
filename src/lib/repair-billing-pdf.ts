@@ -30,8 +30,8 @@ const MARGIN_TOP = 36;
 const MARGIN_BOTTOM = 24;
 const TABLE_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 
-const COL_UNIT = 118;
-const COL_PRICE = 88;
+const COL_UNIT = 158;
+const COL_PRICE = 48;
 const COL_DESC = TABLE_WIDTH - COL_UNIT - COL_PRICE;
 
 const ROW_HEIGHT = 16;
@@ -208,7 +208,7 @@ async function drawCompanyHeader(
   const logo = await pdf.embedPng(logoBytes);
 
   const logoWidth = 72;
-  const logoHeight = 52;
+  const logoHeight = 72;
   const logoY = topY - logoHeight;
 
   page.drawImage(logo, {

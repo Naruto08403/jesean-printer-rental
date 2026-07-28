@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import {
   generateRepairBillingPdf,
+  generateRepairBillingDocx,
   prepareRepairBillingStatement,
   repairBillingFilename,
   repairCustomerDisplayName,
@@ -71,20 +72,52 @@ export async function POST(request: Request) {
 
     const billingStatementItems = sanitizeBillingLineItems(body.billingStatementItems);
     const jobOrderItems = sanitizeBillingLineItems(body.jobOrderItems);
-
-    const buffer = await generateRepairBillingPdf({
+    const format =
+  String(body.format ?? "pdf").toLowerCase() === "docx"
+    ? "docx"
+    : "pdf";
+    // const buffer = await generateRepairBillingPdf({
+    //   ...statement,
+    //   ...(billingStatementItems.length > 0 ? { billingStatementItems } : {}),
+    //   ...(jobOrderItems.length > 0 ? { jobOrderItems } : {}),
+    // });
+    const payload = {
       ...statement,
       ...(billingStatementItems.length > 0 ? { billingStatementItems } : {}),
       ...(jobOrderItems.length > 0 ? { jobOrderItems } : {}),
-    });
-    const filename = repairBillingFilename(clientName, issueDate);
-
+    };
+    
+    const buffer =
+      format === "docx"
+        ? await generateRepairBillingDocx(payload)
+        : await generateRepairBillingPdf(payload);
+    
+    const baseFilename = repairBillingFilename(clientName, issueDate).replace(
+      /\.pdf$/i,
+      ""
+    );
+    
+    const filename =
+      format === "docx"
+        ? `${baseFilename}.docx`
+        : `${baseFilename}.pdf`;
+    
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type":
+          format === "docx"
+            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            : "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
+    
+    // return new NextResponse(new Uint8Array(buffer), {
+    //   headers: {
+    //     "Content-Type": "application/pdf",
+    //     "Content-Disposition": `attachment; filename="${filename}"`,
+    //   },
+    // });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate billing";
     return NextResponse.json({ error: message }, { status: 500 });

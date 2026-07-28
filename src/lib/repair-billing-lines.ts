@@ -77,6 +77,17 @@ export function wrapDiagnosisCommaSeparated(items: string[], maxLen = 50): strin
   return lines.length > 0 ? lines : [""];
 }
 
+function shortenModel(brand?: string | null, model?: string | null) {
+  if (!model) return model;
+
+  if (brand?.toUpperCase() === "BROTHER") {
+    return model.replace(/^(DCP|MFC|HL)[-_ ]?/i, "")
+    .replace(/(DW|DWT|W)$/i, ""); ;
+  }
+
+  return model;
+}
+
 export function formatRepairUnitLabel(repair: {
   brand?: string | null;
   model?: string | null;
@@ -88,13 +99,16 @@ export function formatRepairUnitLabel(repair: {
   } | null;
 }): string {
   const brand = repair.brand ?? repair.printer?.brand;
-  const model = repair.model ?? repair.printer?.model;
+  const model = shortenModel(
+    brand,
+    repair.model ?? repair.printer?.model
+  );
   const serial = repair.serialNumber ?? repair.printer?.serialNumber;
 
   const brandModel = [brand, model].filter(Boolean).join(" ");
 
   if (brandModel && serial) {
-    return `${brandModel.toUpperCase()}: S# ${serial}`;
+    return `${brandModel.toUpperCase()}:${serial}`;
   }
 
   if (brandModel) {
@@ -102,11 +116,11 @@ export function formatRepairUnitLabel(repair: {
   }
 
   if (serial) {
-    return `S# ${serial}`;
+    return serial;
   }
 
   return "";
-}
+  }
 
 export function resolveJobOrderDiagnosisPrices(
   diagnoses: string[],

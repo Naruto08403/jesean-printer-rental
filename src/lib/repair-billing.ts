@@ -5,6 +5,7 @@ import {
   repairDisplayTitle,
 } from "@/lib/repair-device";
 import { generateRepairBillingPdf as renderRepairBillingPdf } from "@/lib/repair-billing-pdf";
+import { generateRepairBillingDocx as renderRepairBillingDocx} from "./generate-billing-docx";
 import { listActiveRepairDiagnosisCatalog } from "@/actions/repair-diagnoses";
 import type { RepairTemplateLineItem } from "@/lib/repair-billing-lines";
 import { toRepairBillingRecord } from "@/lib/repair-billing-record";
@@ -118,13 +119,63 @@ export async function generateRepairBillingPdf(
   });
 }
 
+export async function generateRepairBillingDocx(
+  statement: RepairBillingStatement & {
+    repairs?: Parameters<typeof buildRepairBillingLine>[0][];
+    billingStatementItems?: RepairTemplateLineItem[];
+    jobOrderItems?: RepairTemplateLineItem[];
+  }
+): Promise<Buffer> {
+  if (!statement.repairs?.length) {
+    throw new Error("Repair billing requires source repair records");
+  }
+
+  const { repairs, billingStatementItems, jobOrderItems, ...rest } = statement;
+
+  const diagnosisCatalog = await listActiveRepairDiagnosisCatalog();
+
+  const billingRepairs = repairs.map((repair) =>
+    toRepairBillingRecord({
+      id: repair.id,
+      brand: repair.brand ?? null,
+      model: repair.model ?? null,
+      serialNumber: repair.serialNumber ?? null,
+      problem: repair.problem,
+      diagnosis: repair.diagnosis ?? null,
+      totalAmount: repair.totalAmount,
+      pricingMode:
+        "pricingMode" in repair
+          ? (repair.pricingMode as "CATALOG" | "GENERAL" | undefined)
+          : undefined,
+      printer: repair.printer ?? null,
+      diagnosisLines:
+        "diagnosisLines" in repair && Array.isArray(repair.diagnosisLines)
+          ? repair.diagnosisLines.map((line) => ({
+              name: String((line as { name: string }).name),
+              price: Number((line as { price: number }).price),
+              sortOrder: (line as { sortOrder?: number }).sortOrder,
+            }))
+          : undefined,
+    })
+  );
+
+  return renderRepairBillingDocx({
+    ...rest,
+    repairs: billingRepairs,
+    diagnosisCatalog,
+    billingStatementItems,
+    jobOrderItems,
+  });
+}
+
 /** @deprecated Use generateRepairBillingPdf */
 export async function generateRepairBillingExcel(
   statement: RepairBillingStatement & {
     repairs?: Parameters<typeof buildRepairBillingLine>[0][];
   }
 ): Promise<Buffer> {
-  return generateRepairBillingPdf(statement);
+  // return generateRepairBillingPdf(statement);
+  return generateRepairBillingDocx(statement);
 }
 
 export function repairCustomerDisplayName(repair: {
