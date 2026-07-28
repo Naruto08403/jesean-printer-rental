@@ -38,9 +38,10 @@ export function repairBillingFilenameExcel(clientName: string, issueDate: Date):
   return `repair-billing-${safe}-${d}.xlsx`;
 }
 
-export function buildRepairBillingLine(repair: {
+export type RepairBillingSourceRepair = {
   id: string;
   receivedAt: Date;
+  completedAt?: Date | null;
   problem: string;
   diagnosis?: string | null;
   totalAmount: number;
@@ -49,7 +50,11 @@ export function buildRepairBillingLine(repair: {
   serialNumber?: string | null;
   printer?: { brand: string | null; model: string | null; serialNumber: string | null } | null;
   payments: { amount: number }[];
-}): RepairBillingLine {
+  pricingMode?: "CATALOG" | "GENERAL";
+  diagnosisLines?: { name: string; price: number; sortOrder?: number }[];
+};
+
+export function buildRepairBillingLine(repair: RepairBillingSourceRepair): RepairBillingLine {
   const summary = summarizePayments(repair.totalAmount, repair.payments);
   return {
     id: repair.id,
@@ -65,7 +70,7 @@ export function buildRepairBillingLine(repair: {
 export function prepareRepairBillingStatement(input: {
   clientName: string;
   issueDate: Date;
-  repairs: Parameters<typeof buildRepairBillingLine>[0][];
+  repairs: RepairBillingSourceRepair[];
 }): RepairBillingStatement & { repairs: typeof input.repairs } {
   return {
     clientName: input.clientName,
@@ -75,9 +80,26 @@ export function prepareRepairBillingStatement(input: {
   };
 }
 
+function mapRepairToBillingRecord(repair: RepairBillingSourceRepair) {
+  return toRepairBillingRecord({
+    id: repair.id,
+    receivedAt: repair.receivedAt,
+    completedAt: repair.completedAt ?? null,
+    brand: repair.brand ?? null,
+    model: repair.model ?? null,
+    serialNumber: repair.serialNumber ?? null,
+    problem: repair.problem,
+    diagnosis: repair.diagnosis ?? null,
+    totalAmount: repair.totalAmount,
+    pricingMode: repair.pricingMode,
+    printer: repair.printer ?? null,
+    diagnosisLines: repair.diagnosisLines,
+  });
+}
+
 export async function generateRepairBillingPdf(
   statement: RepairBillingStatement & {
-    repairs?: Parameters<typeof buildRepairBillingLine>[0][];
+    repairs?: RepairBillingSourceRepair[];
     billingStatementItems?: RepairTemplateLineItem[];
     jobOrderItems?: RepairTemplateLineItem[];
   }
@@ -88,29 +110,7 @@ export async function generateRepairBillingPdf(
 
   const { repairs, billingStatementItems, jobOrderItems, ...rest } = statement;
   const diagnosisCatalog = await listActiveRepairDiagnosisCatalog();
-  const billingRepairs = repairs.map((repair) =>
-    toRepairBillingRecord({
-      id: repair.id,
-      receivedAt: "receivedAt" in repair ? repair.receivedAt : undefined,
-      completedAt: "completedAt" in repair ? repair.completedAt : undefined,
-      brand: repair.brand ?? null,
-      model: repair.model ?? null,
-      serialNumber: repair.serialNumber ?? null,
-      problem: repair.problem,
-      diagnosis: repair.diagnosis ?? null,
-      totalAmount: repair.totalAmount,
-      pricingMode: "pricingMode" in repair ? (repair.pricingMode as "CATALOG" | "GENERAL" | undefined) : undefined,
-      printer: repair.printer ?? null,
-      diagnosisLines:
-        "diagnosisLines" in repair && Array.isArray(repair.diagnosisLines)
-          ? repair.diagnosisLines.map((line) => ({
-              name: String((line as { name: string }).name),
-              price: Number((line as { price: number }).price),
-              sortOrder: (line as { sortOrder?: number }).sortOrder,
-            }))
-          : undefined,
-    })
-  );
+  const billingRepairs = repairs.map(mapRepairToBillingRecord);
 
   return renderRepairBillingPdf({
     ...rest,
@@ -123,7 +123,7 @@ export async function generateRepairBillingPdf(
 
 export async function generateRepairBillingDocx(
   statement: RepairBillingStatement & {
-    repairs?: Parameters<typeof buildRepairBillingLine>[0][];
+    repairs?: RepairBillingSourceRepair[];
     billingStatementItems?: RepairTemplateLineItem[];
     jobOrderItems?: RepairTemplateLineItem[];
   }
@@ -136,32 +136,7 @@ export async function generateRepairBillingDocx(
 
   const diagnosisCatalog = await listActiveRepairDiagnosisCatalog();
 
-  const billingRepairs = repairs.map((repair) =>
-    toRepairBillingRecord({
-      id: repair.id,
-      receivedAt: "receivedAt" in repair ? repair.receivedAt : undefined,
-      completedAt: "completedAt" in repair ? repair.completedAt : undefined,
-      brand: repair.brand ?? null,
-      model: repair.model ?? null,
-      serialNumber: repair.serialNumber ?? null,
-      problem: repair.problem,
-      diagnosis: repair.diagnosis ?? null,
-      totalAmount: repair.totalAmount,
-      pricingMode:
-        "pricingMode" in repair
-          ? (repair.pricingMode as "CATALOG" | "GENERAL" | undefined)
-          : undefined,
-      printer: repair.printer ?? null,
-      diagnosisLines:
-        "diagnosisLines" in repair && Array.isArray(repair.diagnosisLines)
-          ? repair.diagnosisLines.map((line) => ({
-              name: String((line as { name: string }).name),
-              price: Number((line as { price: number }).price),
-              sortOrder: (line as { sortOrder?: number }).sortOrder,
-            }))
-          : undefined,
-    })
-  );
+  const billingRepairs = repairs.map(mapRepairToBillingRecord);
 
   return renderRepairBillingDocx({
     ...rest,
@@ -175,7 +150,7 @@ export async function generateRepairBillingDocx(
 /** @deprecated Use generateRepairBillingPdf */
 export async function generateRepairBillingExcel(
   statement: RepairBillingStatement & {
-    repairs?: Parameters<typeof buildRepairBillingLine>[0][];
+    repairs?: RepairBillingSourceRepair[];
   }
 ): Promise<Buffer> {
   // return generateRepairBillingPdf(statement);
