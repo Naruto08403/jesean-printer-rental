@@ -52,6 +52,7 @@ export const authConfig = {
     },
     jwt({ token, user }) {
       if (user) {
+        token.sub = user.id;
         token.role = user.role;
         token.clientId = user.clientId;
         token.username = user.username;

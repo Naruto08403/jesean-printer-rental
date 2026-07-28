@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   DatabaseBackup,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -32,6 +33,7 @@ const links = [
   { href: "/dashboard/inventory", label: "Inventory", icon: Package },
   { href: "/dashboard/sales", label: "Sales", icon: ShoppingCart },
   { href: "/dashboard/cctv", label: "CCTV", icon: Cctv },
+  { href: "/dashboard/activity", label: "Activity", icon: ScrollText },
   { href: "/dashboard/backup", label: "Backup", icon: DatabaseBackup, section: "system" as const },
 ];
 

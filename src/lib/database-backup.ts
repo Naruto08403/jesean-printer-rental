@@ -25,6 +25,8 @@ export type DatabaseBackupPayload = {
     inventoryProducts?: BackupInventoryProduct[];
     saleLines?: BackupSaleLine[];
     inventoryMovements?: BackupInventoryMovement[];
+    loginEvents?: BackupLoginEvent[];
+    accessLogs?: BackupAccessLog[];
   };
 };
 
@@ -232,6 +234,31 @@ type BackupInventoryMovement = {
   createdAt: string;
 };
 
+type BackupLoginEvent = {
+  id: string;
+  userId: string | null;
+  clientId: string | null;
+  role: string | null;
+  eventType: string;
+  identifier: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceLabel: string | null;
+  createdAt: string;
+};
+
+type BackupAccessLog = {
+  id: string;
+  userId: string;
+  clientId: string | null;
+  role: string;
+  path: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceLabel: string | null;
+  createdAt: string;
+};
+
 function toIso(value: Date | null | undefined): string | null {
   if (value == null) return null;
   return value.toISOString();
@@ -268,6 +295,8 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     inventoryProducts,
     saleLines,
     inventoryMovements,
+    loginEvents,
+    accessLogs,
   ] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.client.findMany({ orderBy: { createdAt: "asc" } }),
@@ -285,6 +314,8 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     prisma.inventoryProduct.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.saleLine.findMany({ orderBy: { name: "asc" } }),
     prisma.inventoryMovement.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.loginEvent.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.accessLog.findMany({ orderBy: { createdAt: "asc" } }),
   ]);
 
   const data = {
@@ -379,6 +410,14 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
       ...movement,
       createdAt: movement.createdAt.toISOString(),
     })),
+    loginEvents: loginEvents.map((event) => ({
+      ...event,
+      createdAt: event.createdAt.toISOString(),
+    })),
+    accessLogs: accessLogs.map((log) => ({
+      ...log,
+      createdAt: log.createdAt.toISOString(),
+    })),
   };
 
   const counts = Object.fromEntries(
@@ -469,6 +508,8 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
   await prisma.$transaction(
     async (tx) => {
       await tx.payment.deleteMany();
+      await tx.accessLog.deleteMany();
+      await tx.loginEvent.deleteMany();
       await tx.inventoryMovement.deleteMany();
       await tx.saleLine.deleteMany();
       await tx.printerAuditLog.deleteMany();
@@ -492,6 +533,29 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
             role: u.role as never,
             createdAt: parseRequiredDate(u.createdAt),
             updatedAt: parseRequiredDate(u.updatedAt),
+          })),
+        });
+      }
+
+      const loginEventRows = data.loginEvents ?? [];
+      if (loginEventRows.length > 0) {
+        await tx.loginEvent.createMany({
+          data: loginEventRows.map((event) => ({
+            ...event,
+            role: event.role as never,
+            eventType: event.eventType as never,
+            createdAt: parseRequiredDate(event.createdAt),
+          })),
+        });
+      }
+
+      const accessLogRows = data.accessLogs ?? [];
+      if (accessLogRows.length > 0) {
+        await tx.accessLog.createMany({
+          data: accessLogRows.map((log) => ({
+            ...log,
+            role: log.role as never,
+            createdAt: parseRequiredDate(log.createdAt),
           })),
         });
       }
