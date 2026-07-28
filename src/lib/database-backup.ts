@@ -137,11 +137,13 @@ type BackupSale = {
 
 type BackupCctvInstallation = {
   id: string;
+  clientId: string;
   status: string;
-  clientName:string;
+  clientName: string;
   siteAddress: string | null;
   description: string | null;
   totalAmount: number;
+  dateStarted: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -332,6 +334,8 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     })),
     cctvInstallations: cctvInstallations.map((c) => ({
       ...c,
+      clientId: c.clientId,
+      dateStarted: toIso(c.dateStarted),
       completedAt: toIso(c.completedAt),
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
@@ -631,7 +635,9 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
         await tx.cctvInstallation.createMany({
           data: data.cctvInstallations.map((c) => ({
             ...c,
+            clientId: c.clientId,
             status: c.status as never,
+            dateStarted: parseDate(c.dateStarted),
             completedAt: parseDate(c.completedAt),
             createdAt: parseRequiredDate(c.createdAt),
             updatedAt: parseRequiredDate(c.updatedAt),
