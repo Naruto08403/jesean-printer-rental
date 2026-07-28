@@ -16,17 +16,27 @@ import { DeleteCctvButton } from "@/components/delete-cctv-button";
 import { EditCctvModal } from "@/components/forms/edit-cctv-modal";
 
 export default async function CctvPage() {
-  const [jobs] = await Promise.all([
+  const [jobs, clients] = await Promise.all([
     prisma.cctvInstallation.findMany({
       orderBy: { createdAt: "desc" },
       include: { payments: true },
+    }),
+  
+    prisma.client.findMany({
+      orderBy: {
+        name: "asc",
+      },
+      select: {
+        id: true,
+        name: true,
+      },
     }),
   ]);
 
   return (
     <div className="space-y-6">
       <PageHeader title="CCTV installations" subtitle={`${jobs.length} total`}>
-        <AddCctvModal />
+      <AddCctvModal clients={clients} />
       </PageHeader>
 
       <SearchableDataTable placeholder="Search CCTV by client, site, description, status...">
@@ -99,16 +109,18 @@ export default async function CctvPage() {
                     </Link>
                     <DeleteCctvButton id={j.id} clientName={j.clientName ?? "Unknown"} />
                     <EditCctvModal
-                        job={{
-                          id: j.id,
-                          status: j.status,
-                          totalAmount: Number(j.totalAmount),
-                          siteAddress: j.siteAddress ?? "",
-                          description: j.description ?? "",
-                          dateStarted: j.dateStarted?.toISOString() ?? "",
-                          dateCompleted: j.completedAt?.toISOString() ?? "",
-                        }}
-                      />
+                      job={{
+                        id: j.id,
+                        clientId: j.clientId,
+                        status: j.status,
+                        totalAmount: Number(j.totalAmount),
+                        siteAddress: j.siteAddress ?? "",
+                        description: j.description ?? "",
+                        dateStarted: j.dateStarted?.toISOString().split("T")[0] ?? "",
+                        dateCompleted: j.completedAt?.toISOString().split("T")[0] ?? "",
+                      }}
+                      clients={clients}
+                    />
                   </td>
                 </tr>
               );

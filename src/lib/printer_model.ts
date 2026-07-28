@@ -1,4 +1,7 @@
 export const PRINTER_MODELS = {
+  Canon:[
+    "G1010",
+  ],
     Epson: [
       "L120",
       "L121",

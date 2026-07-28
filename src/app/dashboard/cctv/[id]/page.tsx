@@ -28,16 +28,17 @@ export default async function CctvDetailPage({
   async function setStatus(formData: FormData) {
     "use server";
   
+    const completedAtValue = String(formData.get("completedAt") || "");
+  
     await updateCctvStatus(
       id,
+      job.clientId,
       formData.get("status") as ServiceStatus,
-      job!.totalAmount,
-      job!.dateStarted,
-      formData.get("completedAt")
-        ? new Date(String(formData.get("completedAt")))
-        : job!.completedAt,
-      job!.siteAddress ?? "",
-      job!.description ?? ""
+      job.totalAmount,
+      job.dateStarted,
+      completedAtValue ? new Date(completedAtValue) : job.completedAt,
+      job.siteAddress ?? "",
+      job.description ?? ""
     );
   }
 
@@ -59,18 +60,33 @@ export default async function CctvDetailPage({
         </Card>
         <Card>
           <CardTitle>Status</CardTitle>
-          <form action={setStatus} className="mt-4 flex gap-2">
-            <Select name="status" defaultValue={job.status}>
-              <option value="PENDING">Pending</option>
-              <option value="IN_PROGRESS">In progress</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CANCELLED">Cancelled</option>
-            </Select>
+          <form action={setStatus} className="mt-4 space-y-4">
+          <Select name="status" defaultValue={job.status}>
+            <option value="PENDING">Pending</option>
+            <option value="IN_PROGRESS">In progress</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CANCELLED">Cancelled</option>
+          </Select>
+
+          <input
+            type="date"
+            name="completedAt"
+            defaultValue={
+              job.completedAt
+                ? job.completedAt.toISOString().split("T")[0]
+                : ""
+            }
+            className="w-full rounded-md border px-3 py-2"
+          />
+
+          <div className="flex gap-2">
             <SubmitButton variant="secondary" loadingText="Updating…">
               Update
             </SubmitButton>
+
             <FormLoadingOverlay message="Updating job status…" />
-          </form>
+          </div>
+        </form>
         </Card>
       </div>
 

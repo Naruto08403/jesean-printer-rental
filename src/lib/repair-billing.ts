@@ -91,6 +91,8 @@ export async function generateRepairBillingPdf(
   const billingRepairs = repairs.map((repair) =>
     toRepairBillingRecord({
       id: repair.id,
+      receivedAt: "receivedAt" in repair ? repair.receivedAt : undefined,
+      completedAt: "completedAt" in repair ? repair.completedAt : undefined,
       brand: repair.brand ?? null,
       model: repair.model ?? null,
       serialNumber: repair.serialNumber ?? null,
@@ -137,6 +139,8 @@ export async function generateRepairBillingDocx(
   const billingRepairs = repairs.map((repair) =>
     toRepairBillingRecord({
       id: repair.id,
+      receivedAt: "receivedAt" in repair ? repair.receivedAt : undefined,
+      completedAt: "completedAt" in repair ? repair.completedAt : undefined,
       brand: repair.brand ?? null,
       model: repair.model ?? null,
       serialNumber: repair.serialNumber ?? null,

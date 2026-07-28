@@ -80,6 +80,21 @@ enum RepairPricingMode {
   GENERAL
 }
 
+enum InventoryCategory {
+  PRINTER
+  INK
+  CCTV
+  CPU
+  PRINTER_PART
+  OTHER
+}
+
+enum InventoryMovementType {
+  SALE
+  ADJUSTMENT
+  RESTOCK
+}
+
 model RepairDiagnosisOption {
   id        String   @id @default(cuid())
   name      String   @unique
@@ -106,6 +121,7 @@ model Client {
   id        String             @id @default(cuid())
   name      String
   status    ClientStatus       @default(ACTIVE)
+  cctvJobs  CctvInstallation[]
   email     String?
   phone     String?
   address   String?
@@ -241,21 +257,78 @@ model RepairDiagnosisLine {
   @@index([repairId])
 }
 
+model InventoryProduct {
+  id        String              @id @default(cuid())
+  name      String
+  sku       String?             @unique
+  category  InventoryCategory
+  partType  String?
+  brand     String?
+  model     String?
+  quantity  Int                 @default(0)
+  sellPrice Float               @default(0)
+  costPrice Float?
+  reorderAt Int?
+  notes     String?
+  isActive  Boolean             @default(true)
+  saleLines SaleLine[]
+  movements InventoryMovement[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
 model Sale {
-  id          String        @id @default(cuid())
+  id          String              @id @default(cuid())
   clientId    String?
-  client      Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  status      ServiceStatus @default(COMPLETED)
+  client      Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  status      ServiceStatus       @default(COMPLETED)
   items       String
   totalAmount Float
   notes       String?
   payments    Payment[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  lines       SaleLine[]
+  movements   InventoryMovement[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model SaleLine {
+  id        String            @id @default(cuid())
+  saleId    String
+  sale      Sale              @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String?
+  product   InventoryProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name      String
+  qty       Int
+  unitPrice Float
+  lineTotal Float
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model InventoryMovement {
+  id        String                @id @default(cuid())
+  productId String
+  product   InventoryProduct      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      InventoryMovementType
+  quantity  Int
+  saleId    String?
+  sale      Sale?                 @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  notes     String?
+  createdAt DateTime              @default(now())
+
+  @@index([productId])
+  @@index([saleId])
 }
 
 model CctvInstallation {
   id          String        @id @default(cuid())
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientName  String
   status      ServiceStatus @default(PENDING)
   siteAddress String?

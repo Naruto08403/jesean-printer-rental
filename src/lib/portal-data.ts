@@ -53,7 +53,7 @@ export type PortalClientData = {
   rentals: RentalWithRelations[];
   repairs: RepairWithRelations[];
   sales: SaleWithRelations[];
-  // cctvJobs: CctvWithRelations[];
+  cctvJobs: CctvWithRelations[];
   notifications: PortalNotification[];
   stats: {
     activeRentals: number;
@@ -172,7 +172,7 @@ export function buildPortalNotifications(data: {
   rentals: RentalWithRelations[];
   repairs: RepairWithRelations[];
   sales: SaleWithRelations[];
-  // cctvJobs: CctvWithRelations[];
+  cctvJobs: CctvWithRelations[];
 }): PortalNotification[] {
   const notifications: PortalNotification[] = [];
   const currentYear = defaultRentalAnnualYear();
@@ -244,28 +244,28 @@ export function buildPortalNotifications(data: {
     if (due) notifications.push(due);
   }
 
-  // for (const job of data.cctvJobs) {
-  //   const label = job.siteAddress ?? job.description ?? "CCTV installation";
-  //   const due = serviceDueNotification(
-  //     "cctv_due",
-  //     job.id,
-  //     label,
-  //     job.totalAmount,
-  //     job.payments,
-  //     "/portal/services#cctv",
-  //     job.status !== "COMPLETED" && job.status !== "CANCELLED"
-  //   );
-  //   if (due) notifications.push(due);
+  for (const job of data.cctvJobs) {
+    const label = job.siteAddress ?? job.description ?? "CCTV installation";
+    const due = serviceDueNotification(
+      "cctv_due",
+      job.id,
+      label,
+      job.totalAmount,
+      job.payments,
+      "/portal/services#cctv",
+      job.status !== "COMPLETED" && job.status !== "CANCELLED"
+    );
+    if (due) notifications.push(due);
 
-  //   const update = jobUpdateNotification(
-  //     job.id,
-  //     "cctv",
-  //     label,
-  //     job.status,
-  //     "/portal/services#cctv"
-  //   );
-  //   if (update) notifications.push(update);
-  // }
+    const update = jobUpdateNotification(
+      job.id,
+      "cctv",
+      label,
+      job.status,
+      "/portal/services#cctv"
+    );
+    if (update) notifications.push(update);
+  }
 
   const severityOrder = { urgent: 0, warning: 1, info: 2 };
   return notifications.sort(
@@ -278,7 +278,7 @@ export function computePortalStats(data: {
   rentals: RentalWithRelations[];
   repairs: RepairWithRelations[];
   sales: SaleWithRelations[];
-  // cctvJobs: CctvWithRelations[];
+  cctvJobs: CctvWithRelations[];
   notifications: PortalNotification[];
 }) {
   const totalDue = data.notifications
@@ -287,7 +287,7 @@ export function computePortalStats(data: {
 
   const openJobs =
     data.repairs.filter((r) => r.status === "PENDING" || r.status === "IN_PROGRESS").length;
-    // data.cctvJobs.filter((j) => j.status === "PENDING" || j.status === "IN_PROGRESS").length;
+    data.cctvJobs.filter((j) => j.status === "PENDING" || j.status === "IN_PROGRESS").length;
 
   return {
     activeRentals: data.rentals.filter(
@@ -319,29 +319,37 @@ export const getPortalClientData = cache(async (clientId: string): Promise<Porta
         orderBy: { createdAt: "desc" },
         include: { payments: true },
       },
-      // cctvJobs: {
-      //   orderBy: { createdAt: "desc" },
-      //   include: { payments: true },
-      // },
+      cctvJobs: {
+        orderBy: { createdAt: "desc" },
+        include: { payments: true },
+      },
     },
   });
 
   if (!client) return null;
 
-  const { rentals, repairs, sales, ...clientRecord } = client;
+  const {
+    rentals,
+    repairs,
+    sales,
+    cctvJobs,
+    ...clientRecord
+  } = client;
+  
   const notifications = buildPortalNotifications({
     client: clientRecord,
     rentals,
     repairs,
     sales,
-   
+    cctvJobs,
   });
+  
   const stats = computePortalStats({
     client: clientRecord,
     rentals,
     repairs,
     sales,
-
+    cctvJobs,
     notifications,
   });
 
@@ -349,6 +357,7 @@ export const getPortalClientData = cache(async (clientId: string): Promise<Porta
     client: clientRecord,
     rentals,
     repairs,
+    cctvJobs,
     sales,
     notifications,
     stats,

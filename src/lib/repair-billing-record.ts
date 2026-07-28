@@ -2,6 +2,8 @@ import type { RepairBillingRepairRecord } from "@/lib/repair-billing-lines";
 
 type RepairWithLines = {
   id: string;
+  receivedAt?: Date | string | null;
+  completedAt?: Date | string | null;
   brand: string | null;
   model: string | null;
   serialNumber: string | null;
@@ -21,6 +23,8 @@ export function toRepairBillingRecord(repair: RepairWithLines): RepairBillingRep
 
   return {
     id: repair.id,
+    receivedAt: repair.receivedAt,
+    completedAt: repair.completedAt,
     brand: repair.brand,
     model: repair.model,
     serialNumber: repair.serialNumber,

@@ -8,6 +8,7 @@ import {
 } from "@/components/searchable-data-table";
 import { toSearchText } from "@/lib/search";
 import { AddSaleModal } from "@/components/forms/add-sale-modal";
+import { listActiveInventoryForSale } from "@/actions/inventory";
 import { PaymentStatus } from "@/components/payment-status";
 import { summarizePayments } from "@/lib/payments";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -22,20 +23,21 @@ function formatItems(items: string) {
 }
 
 export default async function SalesPage() {
-  const [sales, clients] = await Promise.all([
+  const [sales, clients, products] = await Promise.all([
     prisma.sale.findMany({
       orderBy: { createdAt: "desc" },
       include: { client: true, payments: true },
     }),
     prisma.client.findMany({ orderBy: { name: "asc" } }),
+    listActiveInventoryForSale(),
   ]);
 
   const clientOptions = clients.map((c) => ({ id: c.id, label: c.name }));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Sales" subtitle={`Inks & supplies · ${sales.length} total`}>
-        <AddSaleModal clients={clientOptions} />
+      <PageHeader title="Sales" subtitle={`${sales.length} total · stock deducted from inventory`}>
+        <AddSaleModal clients={clientOptions} products={products} />
       </PageHeader>
 
       <SearchableDataTable placeholder="Search sales by items, client, amount...">

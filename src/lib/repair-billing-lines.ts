@@ -1,6 +1,7 @@
 import { repairDisplayTitle } from "@/lib/repair-device";
 
 export type RepairTemplateLineItem = {
+  dateLabel?: string;
   unitLabel: string;
   description: string;
   amount: number | null;
@@ -14,6 +15,8 @@ export type RepairBillingPreviewItem = RepairTemplateLineItem & {
 
 export type RepairBillingRepairRecord = {
   id?: string;
+  receivedAt?: Date | string | null;
+  completedAt?: Date | string | null;
   brand?: string | null;
   model?: string | null;
   serialNumber?: string | null;
@@ -86,6 +89,24 @@ function shortenModel(brand?: string | null, model?: string | null) {
   }
 
   return model;
+}
+
+export function formatRepairLineDate(repair: {
+  receivedAt?: Date | string | null;
+  completedAt?: Date | string | null;
+}): string {
+  const pick = (value: Date | string | null | undefined) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const received = pick(repair.receivedAt);
+  const completed = pick(repair.completedAt);
+  const d = received ?? completed;
+  if (!d) return "";
+
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 }
 
 export function formatRepairUnitLabel(repair: {
@@ -164,6 +185,7 @@ export function buildBillingStatementLineItems(
     const wrapped = wrapDiagnosisCommaSeparated(diagnoses, 70);
 
     return {
+      dateLabel: formatRepairLineDate(repair),
       unitLabel: formatRepairUnitLabel(repair),
       description: wrapped.join("\n"),
       amount: repair.totalAmount,
@@ -214,6 +236,7 @@ export function buildJobOrderLineItems(
         : parseDiagnosisItems(repair.diagnosis, repairDisplayTitle(repair));
 
       return [{
+        dateLabel: formatRepairLineDate(repair),
         unitLabel: formatRepairUnitLabel(repair),
         description: wrapDiagnosisCommaSeparated(diagnoses, 50).join("\n"),
         amount: repair.totalAmount,
@@ -225,6 +248,7 @@ export function buildJobOrderLineItems(
     // CATALOG = existing behavior
     if (repair.diagnosisLines && repair.diagnosisLines.length > 0) {
       return repair.diagnosisLines.map((row, index) => ({
+        dateLabel: index === 0 ? formatRepairLineDate(repair) : "",
         unitLabel: index === 0 ? formatRepairUnitLabel(repair) : "",
         description: row.name.toUpperCase(),
         amount: row.price,
@@ -241,6 +265,7 @@ export function buildJobOrderLineItems(
     );
 
     return priced.map((row, index) => ({
+      dateLabel: index === 0 ? formatRepairLineDate(repair) : "",
       unitLabel: index === 0 ? formatRepairUnitLabel(repair) : "",
       description: row.name,
       amount: row.price,
@@ -273,6 +298,7 @@ export function padLineItems(
   const padded = [...items];
   while (padded.length < minRows) {
     padded.push({
+      dateLabel: "",
       unitLabel: "",
       description: "",
       amount: null,
@@ -335,6 +361,7 @@ export function sanitizeBillingLineItems(items: unknown[]): RepairTemplateLineIt
           ? Number(amountRaw)
           : null;
     return {
+      dateLabel: String(item.dateLabel ?? ""),
       unitLabel: String(item.unitLabel ?? ""),
       description: String(item.description ?? ""),
       amount,

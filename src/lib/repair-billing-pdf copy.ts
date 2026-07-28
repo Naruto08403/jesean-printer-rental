@@ -30,15 +30,9 @@ const MARGIN_TOP = 36;
 const MARGIN_BOTTOM = 24;
 const TABLE_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 
-const COL_DATE = 58;
-const COL_UNIT = 130;
+const COL_UNIT = 158;
 const COL_PRICE = 48;
-const COL_DESC = TABLE_WIDTH - COL_DATE - COL_UNIT - COL_PRICE;
-
-const X_DATE = MARGIN_X;
-const X_UNIT = MARGIN_X + COL_DATE;
-const X_DESC = X_UNIT + COL_UNIT;
-const X_PRICE = X_DESC + COL_DESC;
+const COL_DESC = TABLE_WIDTH - COL_UNIT - COL_PRICE;
 
 const ROW_HEIGHT = 16;
 const DESC_LINE_HEIGHT = 10;
@@ -323,10 +317,9 @@ function drawTableHeader(page: PDFPage, fonts: Fonts, y: number) {
   });
 
   const labelY = y - 8;
-  drawCenteredText(page, "DATE", X_DATE, COL_DATE, labelY, fonts.bold, 9);
-  drawCenteredText(page, "UNIT", X_UNIT, COL_UNIT, labelY, fonts.bold, 9);
-  drawCenteredText(page, "DESCRIPTION", X_DESC, COL_DESC, labelY, fonts.bold, 9);
-  drawCenteredText(page, "PRICE", X_PRICE, COL_PRICE, labelY, fonts.bold, 9);
+  drawCenteredText(page, "UNIT", MARGIN_X, COL_UNIT, labelY, fonts.bold, 9);
+  drawCenteredText(page, "Description", MARGIN_X + COL_UNIT, COL_DESC, labelY, fonts.bold, 9);
+  drawCenteredText(page, "Price", MARGIN_X + COL_UNIT + COL_DESC, COL_PRICE, labelY, fonts.bold, 9);
 
   return y - TABLE_HEADER_HEIGHT;
 }
@@ -361,22 +354,21 @@ function drawTableRow(
 
   // ===== Vertical Columns =====
   page.drawLine({
-    start: { x: X_UNIT, y: rowBottom },
-    end: { x: X_UNIT, y: y },
+    start: { x: MARGIN_X + COL_UNIT, y: rowBottom },
+    end: { x: MARGIN_X + COL_UNIT, y: y },
     color: COLOR_BORDER,
     thickness: 0.5,
   });
 
   page.drawLine({
-    start: { x: X_DESC, y: rowBottom },
-    end: { x: X_DESC, y: y },
-    color: COLOR_BORDER,
-    thickness: 0.5,
-  });
-
-  page.drawLine({
-    start: { x: X_PRICE, y: rowBottom },
-    end: { x: X_PRICE, y: y },
+    start: {
+      x: MARGIN_X + COL_UNIT + COL_DESC,
+      y: rowBottom,
+    },
+    end: {
+      x: MARGIN_X + COL_UNIT + COL_DESC,
+      y: y,
+    },
     color: COLOR_BORDER,
     thickness: 0.5,
   });
@@ -386,33 +378,17 @@ function drawTableRow(
     const yy = y - i * ROW_HEIGHT;
 
     page.drawLine({
-      start: { x: X_DESC, y: yy },
-      end: { x: X_PRICE, y: yy },
+      start: {
+        x: MARGIN_X + COL_UNIT,
+        y: yy,
+      },
+      end: {
+        x: MARGIN_X + COL_UNIT + COL_DESC,
+        y: yy,
+      },
       color: COLOR_BORDER,
       thickness: 0.5,
     });
-  }
-
-  const mergedMidY = rowBottom + totalHeight / 2 - 4;
-
-  // ===== DATE centered vertically =====
-  if (item.dateLabel) {
-    const dateText = truncateMiddle(
-      item.dateLabel,
-      fonts.regular,
-      7,
-      COL_DATE - 6
-    );
-
-    drawCenteredText(
-      page,
-      dateText,
-      X_DATE,
-      COL_DATE,
-      mergedMidY,
-      fonts.regular,
-      7
-    );
   }
 
   // ===== UNIT centered vertically =====
@@ -424,12 +400,14 @@ function drawTableRow(
       COL_UNIT - 8
     );
 
+    const unitY = rowBottom + totalHeight / 2 - 4;
+
     drawCenteredText(
       page,
       unit,
-      X_UNIT,
+      MARGIN_X,
       COL_UNIT,
-      mergedMidY,
+      unitY,
       fonts.regular,
       8
     );
@@ -453,7 +431,7 @@ function drawTableRow(
     drawCenteredText(
       page,
       text,
-      X_DESC,
+      MARGIN_X + COL_UNIT,
       COL_DESC,
       textY,
       fonts.regular,
@@ -470,7 +448,7 @@ function drawTableRow(
       page,
       `${fields.prefix}_p${pageIndex}_r${rowIndex}_price_${fields.price}`,
       item.amount,
-      X_PRICE + 2,
+      MARGIN_X + COL_UNIT + COL_DESC + 2,
       rowBottom + 2,
       COL_PRICE - 4,
       totalHeight - 4,
@@ -501,7 +479,7 @@ function drawTotalRow(
   });
 
   const labelY = y - 8;
-  drawCenteredText(page, "TOTAL", X_DESC, COL_DESC, labelY, fonts.bold, 9);
+  drawCenteredText(page, "TOTAL", MARGIN_X + COL_UNIT, COL_DESC, labelY, fonts.bold, 9);
 
   fields.total += 1;
   addPriceField(
@@ -509,8 +487,8 @@ function drawTotalRow(
     page,
     `${fields.prefix}_p${pageIndex}_total_${fields.total}`,
     total,
-    X_PRICE,
-    labelY - 2,
+    MARGIN_X + COL_UNIT + COL_DESC,
+    labelY-2,
     COL_PRICE - 4,
     14,
     9
@@ -666,22 +644,21 @@ async function drawDocumentSection(
     });
 
     page.drawLine({
-      start: { x: X_UNIT, y: rowBottom },
-      end: { x: X_UNIT, y },
+      start: { x: MARGIN_X + COL_UNIT, y: rowBottom },
+      end: { x: MARGIN_X + COL_UNIT, y },
       color: COLOR_BORDER,
       thickness: 0.5,
     });
 
     page.drawLine({
-      start: { x: X_DESC, y: rowBottom },
-      end: { x: X_DESC, y },
-      color: COLOR_BORDER,
-      thickness: 0.5,
-    });
-
-    page.drawLine({
-      start: { x: X_PRICE, y: rowBottom },
-      end: { x: X_PRICE, y },
+      start: {
+        x: MARGIN_X + COL_UNIT + COL_DESC,
+        y: rowBottom,
+      },
+      end: {
+        x: MARGIN_X + COL_UNIT + COL_DESC,
+        y,
+      },
       color: COLOR_BORDER,
       thickness: 0.5,
     });
@@ -717,6 +694,20 @@ async function drawDocumentSection(
   );
 
   return y;
+}
+function formatRepairDate(
+  repair: { dateStarted?: string | null; dateCompleted?: string | null }
+) {
+  const startDate = repair.dateStarted ? new Date(repair.dateStarted) : null;
+  const endDate = repair.dateCompleted ? new Date(repair.dateCompleted) : null;
+
+  if (!startDate && !endDate) return "";
+
+  if (startDate && endDate) {
+    return `${startDate.getMonth() + 1}/${startDate.getDate()}/${startDate.getFullYear()} - ${endDate.getMonth() + 1}/${endDate.getDate()}/${endDate.getFullYear()}`;
+  }
+
+  return startDate ? `${startDate.getMonth() + 1}/${startDate.getDate()}/${startDate.getFullYear()}` : "";
 }
 
 async function buildPdf(

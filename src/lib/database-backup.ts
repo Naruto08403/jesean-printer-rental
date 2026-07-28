@@ -22,6 +22,9 @@ export type DatabaseBackupPayload = {
     printerAuditLogs: BackupPrinterAuditLog[];
     repairDiagnosisOptions?: BackupRepairDiagnosisOption[];
     repairDiagnosisLines?: BackupRepairDiagnosisLine[];
+    inventoryProducts?: BackupInventoryProduct[];
+    saleLines?: BackupSaleLine[];
+    inventoryMovements?: BackupInventoryMovement[];
   };
 };
 
@@ -189,6 +192,44 @@ type BackupRepairDiagnosisLine = {
   sortOrder: number;
 };
 
+type BackupInventoryProduct = {
+  id: string;
+  name: string;
+  sku: string | null;
+  category: string;
+  partType: string | null;
+  brand: string | null;
+  model: string | null;
+  quantity: number;
+  sellPrice: number;
+  costPrice: number | null;
+  reorderAt: number | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type BackupSaleLine = {
+  id: string;
+  saleId: string;
+  productId: string | null;
+  name: string;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+type BackupInventoryMovement = {
+  id: string;
+  productId: string;
+  type: string;
+  quantity: number;
+  saleId: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
 function toIso(value: Date | null | undefined): string | null {
   if (value == null) return null;
   return value.toISOString();
@@ -222,6 +263,9 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     printerAuditLogs,
     repairDiagnosisOptions,
     repairDiagnosisLines,
+    inventoryProducts,
+    saleLines,
+    inventoryMovements,
   ] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.client.findMany({ orderBy: { createdAt: "asc" } }),
@@ -236,6 +280,9 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     prisma.printerAuditLog.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.repairDiagnosisOption.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.repairDiagnosisLine.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.inventoryProduct.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.saleLine.findMany({ orderBy: { name: "asc" } }),
+    prisma.inventoryMovement.findMany({ orderBy: { createdAt: "asc" } }),
   ]);
 
   const data = {
@@ -309,6 +356,24 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
       name: line.name,
       price: line.price,
       sortOrder: line.sortOrder,
+    })),
+    inventoryProducts: inventoryProducts.map((product) => ({
+      ...product,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
+    })),
+    saleLines: saleLines.map((line) => ({
+      id: line.id,
+      saleId: line.saleId,
+      productId: line.productId,
+      name: line.name,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      lineTotal: line.lineTotal,
+    })),
+    inventoryMovements: inventoryMovements.map((movement) => ({
+      ...movement,
+      createdAt: movement.createdAt.toISOString(),
     })),
   };
 
@@ -400,6 +465,8 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
   await prisma.$transaction(
     async (tx) => {
       await tx.payment.deleteMany();
+      await tx.inventoryMovement.deleteMany();
+      await tx.saleLine.deleteMany();
       await tx.printerAuditLog.deleteMany();
       await tx.rentalAuditLog.deleteMany();
       await tx.rentalPausePeriod.deleteMany();
@@ -408,6 +475,7 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
       await tx.repair.deleteMany();
       await tx.repairDiagnosisOption.deleteMany();
       await tx.sale.deleteMany();
+      await tx.inventoryProduct.deleteMany();
       await tx.cctvInstallation.deleteMany();
       await tx.client.deleteMany();
       await tx.printer.deleteMany();
@@ -510,6 +578,18 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
         });
       }
 
+      const inventoryProductRows = data.inventoryProducts ?? [];
+      if (inventoryProductRows.length > 0) {
+        await tx.inventoryProduct.createMany({
+          data: inventoryProductRows.map((product) => ({
+            ...product,
+            category: product.category as never,
+            createdAt: parseRequiredDate(product.createdAt),
+            updatedAt: parseRequiredDate(product.updatedAt),
+          })),
+        });
+      }
+
       if (data.sales.length > 0) {
         await tx.sale.createMany({
           data: data.sales.map((s) => ({
@@ -517,6 +597,32 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
             status: s.status as never,
             createdAt: parseRequiredDate(s.createdAt),
             updatedAt: parseRequiredDate(s.updatedAt),
+          })),
+        });
+      }
+
+      const saleLineRows = data.saleLines ?? [];
+      if (saleLineRows.length > 0) {
+        await tx.saleLine.createMany({
+          data: saleLineRows.map((line) => ({
+            id: line.id,
+            saleId: line.saleId,
+            productId: line.productId,
+            name: line.name,
+            qty: line.qty,
+            unitPrice: line.unitPrice,
+            lineTotal: line.lineTotal,
+          })),
+        });
+      }
+
+      const inventoryMovementRows = data.inventoryMovements ?? [];
+      if (inventoryMovementRows.length > 0) {
+        await tx.inventoryMovement.createMany({
+          data: inventoryMovementRows.map((movement) => ({
+            ...movement,
+            type: movement.type as never,
+            createdAt: parseRequiredDate(movement.createdAt),
           })),
         });
       }
