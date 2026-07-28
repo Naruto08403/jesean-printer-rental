@@ -19,8 +19,16 @@ export default async function CctvDetailPage({
   const { id } = await params;
   const job = await prisma.cctvInstallation.findUnique({
     where: { id },
-    include: {  payments: { orderBy: { paidAt: "desc" } } },
+    include: {
+      payments: {
+        orderBy: { paidAt: "desc" },
+      },
+    },
   });
+  
+  if (!job) notFound();
+  
+  const cctv = job;
   if (!job) notFound();
 
   const summary = summarizePayments(job.totalAmount, job.payments);
@@ -32,13 +40,13 @@ export default async function CctvDetailPage({
   
     await updateCctvStatus(
       id,
-      job.clientId,
+      cctv.clientId,
       formData.get("status") as ServiceStatus,
-      job.totalAmount,
-      job.dateStarted,
-      completedAtValue ? new Date(completedAtValue) : job.completedAt,
-      job.siteAddress ?? "",
-      job.description ?? ""
+      cctv.totalAmount,
+      cctv.dateStarted,
+      completedAtValue ? new Date(completedAtValue) : cctv.completedAt,
+      cctv.siteAddress ?? "",
+      cctv.description ?? ""
     );
   }
 
