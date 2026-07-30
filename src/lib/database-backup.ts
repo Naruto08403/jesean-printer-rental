@@ -27,6 +27,7 @@ export type DatabaseBackupPayload = {
     inventoryMovements?: BackupInventoryMovement[];
     loginEvents?: BackupLoginEvent[];
     accessLogs?: BackupAccessLog[];
+    clientVisits?: BackupClientVisit[];
   };
 };
 
@@ -259,6 +260,15 @@ type BackupAccessLog = {
   createdAt: string;
 };
 
+type BackupClientVisit = {
+  id: string;
+  clientId: string;
+  visitedAt: string;
+  reason: string;
+  notes: string | null;
+  createdAt: string;
+};
+
 function toIso(value: Date | null | undefined): string | null {
   if (value == null) return null;
   return value.toISOString();
@@ -297,6 +307,7 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     inventoryMovements,
     loginEvents,
     accessLogs,
+    clientVisits,
   ] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.client.findMany({ orderBy: { createdAt: "asc" } }),
@@ -316,6 +327,7 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
     prisma.inventoryMovement.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.loginEvent.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.accessLog.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.clientVisit.findMany({ orderBy: { visitedAt: "asc" } }),
   ]);
 
   const data = {
@@ -418,6 +430,14 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackupPayload> {
       ...log,
       createdAt: log.createdAt.toISOString(),
     })),
+    clientVisits: clientVisits.map((visit) => ({
+      id: visit.id,
+      clientId: visit.clientId,
+      visitedAt: visit.visitedAt.toISOString(),
+      reason: visit.reason,
+      notes: visit.notes,
+      createdAt: visit.createdAt.toISOString(),
+    })),
   };
 
   const counts = Object.fromEntries(
@@ -510,6 +530,7 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
       await tx.payment.deleteMany();
       await tx.accessLog.deleteMany();
       await tx.loginEvent.deleteMany();
+      await tx.clientVisit.deleteMany();
       await tx.inventoryMovement.deleteMany();
       await tx.saleLine.deleteMany();
       await tx.printerAuditLog.deleteMany();
@@ -567,6 +588,20 @@ export async function importDatabaseBackup(payload: DatabaseBackupPayload): Prom
             status: c.status as never,
             createdAt: parseRequiredDate(c.createdAt),
             updatedAt: parseRequiredDate(c.updatedAt),
+          })),
+        });
+      }
+
+      const clientVisitRows = data.clientVisits ?? [];
+      if (clientVisitRows.length > 0) {
+        await tx.clientVisit.createMany({
+          data: clientVisitRows.map((visit) => ({
+            id: visit.id,
+            clientId: visit.clientId,
+            visitedAt: parseRequiredDate(visit.visitedAt),
+            reason: visit.reason,
+            notes: visit.notes,
+            createdAt: parseRequiredDate(visit.createdAt),
           })),
         });
       }

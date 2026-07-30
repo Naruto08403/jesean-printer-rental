@@ -8,6 +8,7 @@ export default async function HomePage() {
   const session = await auth();
   if (session?.user.role === "ADMIN") redirect("/dashboard");
   if (session?.user.role === "CLIENT") redirect("/portal");
+  if (session?.user.role === "VISIT_STAFF") redirect("/visits");
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white">
@@ -16,6 +17,9 @@ export default async function HomePage() {
         <div className="flex gap-2">
           <Link href="/portal/login">
             <Button variant="secondary">Client portal</Button>
+          </Link>
+          <Link href="/visits/login">
+            <Button variant="secondary">Visit tracker</Button>
           </Link>
           <Link href="/login">
             <Button>Staff login</Button>

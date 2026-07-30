@@ -126,6 +126,33 @@ function truncateText(text: string, font: PDFFont, size: number, maxWidth: numbe
   }
   return `${trimmed}…`;
 }
+function wrapText(
+  text: string,
+  font: PDFFont,
+  size: number,
+  maxWidth: number
+): string[] {
+  if (!text) return [""];
+
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+
+    if (font.widthOfTextAtSize(test, size) <= maxWidth) {
+      current = test;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+
+  if (current) lines.push(current);
+
+  return lines;
+}
 
 function itemRowHeight(item: RepairTemplateLineItem) {
   const lineCount = Math.max(1, item.description.split("\n").length);
@@ -341,12 +368,16 @@ function drawTableRow(
   pageIndex: number,
   rowIndex: number
 ) {
-  const descLines =
-    item.description?.split("\n").filter((l) => l.trim().length > 0) ?? [""];
-
+  const descLines = wrapText(
+    item.description ?? "",
+    fonts.regular,
+    8,
+    COL_DESC - 8
+  );
   const rows = Math.max(1, descLines.length);
 
-  const totalHeight = rows * ROW_HEIGHT;
+  // const totalHeight = rows * ROW_HEIGHT;
+  const totalHeight = Math.max(ROW_HEIGHT, rows * ROW_HEIGHT);
   const rowBottom = y - totalHeight;
 
   // ===== Outer Border =====
@@ -437,12 +468,13 @@ function drawTableRow(
 
   // ===== Description =====
   descLines.forEach((line, index) => {
-    const text = truncateMiddle(
-      line,
-      fonts.regular,
-      8,
-      COL_DESC - 8
-    );
+    // const text = truncateMiddle(
+    //   line,
+    //   fonts.regular,
+    //   8,
+    //   COL_DESC - 8
+    // );
+    const text = line;
 
     const textY =
       y -

@@ -73,8 +73,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         const password = credentials?.password as string | undefined;
-        const email = (credentials?.email as string | undefined)?.toLowerCase().trim();
-        const username = (credentials?.username as string | undefined)?.toLowerCase().trim();
+        const email =
+          (credentials?.email as string | undefined)?.toLowerCase().trim() || undefined;
+        const username =
+          (credentials?.username as string | undefined)?.toLowerCase().trim() || undefined;
         const identifier = email || username || "unknown";
         const meta = await requestMeta();
 
@@ -89,7 +91,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               include: { client: { select: { id: true } } },
             })
           : await prisma.user.findFirst({
-              where: { username: username! },
+              where: {
+                OR: [{ username: username! }, { email: username! }],
+              },
               include: { client: { select: { id: true } } },
             });
 
@@ -104,11 +108,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        if (username && user.role !== "CLIENT") {
-          await recordLoginFailed({ identifier, meta });
-          return null;
-        }
-        if (email && user.role !== "ADMIN") {
+        if (email) {
+          if (user.role !== "ADMIN" && user.role !== "VISIT_STAFF") {
+            await recordLoginFailed({ identifier, meta });
+            return null;
+          }
+        } else if (user.role !== "CLIENT" && user.role !== "VISIT_STAFF") {
           await recordLoginFailed({ identifier, meta });
           return null;
         }
@@ -136,6 +141,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 export async function requireAdmin() {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
+    throw new Error("Unauthorized");
+  }
+  return session;
+}
+
+export async function requireVisitStaffOrAdmin() {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "VISIT_STAFF")
+  ) {
     throw new Error("Unauthorized");
   }
   return session;

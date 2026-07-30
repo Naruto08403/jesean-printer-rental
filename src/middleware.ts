@@ -7,7 +7,7 @@ const { auth } = NextAuth(authConfig);
 function shouldLogAccess(pathname: string) {
   if (pathname.includes("/login")) return false;
   if (pathname.startsWith("/api/")) return false;
-  return pathname.startsWith("/dashboard") || pathname.startsWith("/portal");
+  return pathname.startsWith("/dashboard") || pathname.startsWith("/portal") || pathname.startsWith("/visits");
 }
 
 function getSessionUserId(session: { user?: { id?: string | null } } | null) {
@@ -36,5 +36,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/portal/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/portal/:path*", "/visits/:path*", "/login"],
 };
