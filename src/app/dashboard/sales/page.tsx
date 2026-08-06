@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { DataTableElement } from "@/components/data-table";
+import { Edit, Trash2 } from "lucide-react";
+import { DeleteSaleButton } from "@/components/delete-sale-button";
+import { EditSaleModal } from "@/components/forms/edit-sale-modal";
 import {
   SearchableDataTable,
   SearchNoMatchRow,
@@ -26,7 +29,7 @@ export default async function SalesPage() {
   const [sales, clients, products] = await Promise.all([
     prisma.sale.findMany({
       orderBy: { createdAt: "desc" },
-      include: { client: true, payments: true },
+      include: { client: true, payments: true, lines: true },
     }),
     prisma.client.findMany({ orderBy: { name: "asc" } }),
     listActiveInventoryForSale(),
@@ -49,7 +52,7 @@ export default async function SalesPage() {
               <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Total</th>
               <th className="px-4 py-3 font-medium">Payment</th>
-              <th className="px-4 py-3 font-medium" />
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -87,13 +90,33 @@ export default async function SalesPage() {
                   <td className="px-4 py-3">
                     <PaymentStatus summary={summary} />
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/dashboard/sales/${s.id}`}
-                      className="text-brand-600 hover:underline"
-                    >
-                      View
-                    </Link>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+
+                      <Link
+                        href={`/dashboard/sales/${s.id}`}
+                        className="rounded-md border px-3 py-1.5 text-sm hover:bg-slate-100"
+                      >
+                        View
+                      </Link>
+
+                      <EditSaleModal sale={s} clients={clientOptions} products={products}>
+                        <button
+                          className="rounded-md border border-blue-200 bg-blue-50 p-2 text-blue-600 hover:bg-blue-100"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      </EditSaleModal>
+
+                      <DeleteSaleButton id={s.id}>
+                        <button
+                          className="rounded-md border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </DeleteSaleButton>
+
+                    </div>
                   </td>
                 </tr>
               );

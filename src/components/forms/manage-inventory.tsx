@@ -2,13 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, PackagePlus } from "lucide-react";
+import { Pencil, Plus, PackagePlus,Trash2 } from "lucide-react";
 import type { InventoryCategory } from "@prisma/client";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { DeleteInventoryButton } from "../delete-inventory-button";
 import {
   adjustInventoryStock,
   createInventoryProduct,
@@ -110,9 +111,25 @@ function ProductFormFields({
           <Input id="model" name="model" defaultValue={item?.model ?? ""} className="mt-1" />
         </div>
       </div>
-      <div>
-        <Label htmlFor="sku">SKU / code</Label>
-        <Input id="sku" name="sku" defaultValue={item?.sku ?? ""} className="mt-1" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="sku">SKU / code</Label>
+          <Input id="sku" name="sku" defaultValue={item?.sku ?? ""} className="mt-1" />
+        </div>
+        <div>
+          <Label htmlFor="color">Color</Label>
+          <Select
+            defaultValue="Black"
+            className="mt-1"
+            name="color"
+            required
+          >
+            <option value="Black">Black</option>
+            <option value="Magenta">Magenta</option>
+            <option value="Cyan">Cyan</option>
+            <option value="Yellow">Yellow</option>
+          </Select>
+        </div>
       </div>
       {!item && (
         <div>
@@ -336,7 +353,7 @@ export function ManageInventory({
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{item.name}</p>
                     <p className="text-xs text-slate-500">
-                      {[item.brand, item.model, item.partType, item.sku]
+                      {[item.brand, item.model, item.partType, item.color]
                         .filter(Boolean)
                         .join(" · ") || "—"}
                     </p>
@@ -384,6 +401,15 @@ export function ManageInventory({
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      <DeleteInventoryButton id={item.id}>
+                          <button
+                              className="rounded-md border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                      </DeleteInventoryButton>
+                      
+
                     </div>
                   </td>
                 </tr>

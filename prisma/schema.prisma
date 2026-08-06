@@ -277,6 +277,7 @@ model InventoryProduct {
   partType  String?
   brand     String?
   model     String?
+  color     String?
   quantity  Int                 @default(0)
   sellPrice Float               @default(0)
   costPrice Float?
@@ -305,6 +306,7 @@ model Sale {
   movements   InventoryMovement[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  delivery    DateTime            @default(now())
 }
 
 model SaleLine {

@@ -29,11 +29,12 @@ export function formatInventoryProductLabel(product: {
   brand?: string | null;
   model?: string | null;
   sku?: string | null;
+  color?: string | null;
 }) {
   const parts = [product.name];
-  if (product.brand) parts.push(product.brand);
+  // if (product.brand ) parts.push(product.brand);
   if (product.model) parts.push(product.model);
-  if (product.sku) parts.push(`(${product.sku})`);
+  if (product.color) parts.push(`(${product.color})`);
   return parts.join(" · ");
 }
 

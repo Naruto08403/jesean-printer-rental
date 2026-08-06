@@ -30,6 +30,21 @@ export default async function SaleDetailPage({
       <Link href="/dashboard/sales" className="text-sm text-brand-600 hover:underline">
         ← Sales
       </Link>
+            {/* <Link
+        href={`/dashboard/sales/${sale.id}/print`}
+        className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+      >
+        Print Delivery Receipt
+      </Link> */}
+
+
+      <a
+        href={`/api/sales/${sale.id}/delivery`}
+        download={`delivery-receipt-${sale.id}.pdf`}
+      >
+        Download PDF
+      </a>
+
       <h1 className="text-2xl font-bold">Sale</h1>
       <PaymentStatus summary={summary} />
 

@@ -65,3 +65,20 @@ export async function deleteVisitStaffUser(id: string) {
   await prisma.user.delete({ where: { id } });
   revalidateVisitStaffPaths();
 }
+
+
+export async function deleteSale(id: string) {
+  await prisma.payment.deleteMany({
+    where: {
+      saleId: id,
+    },
+  });
+
+  await prisma.sale.delete({
+    where: {
+      id,
+    },
+  });
+
+  revalidatePath("/dashboard/sales");
+}

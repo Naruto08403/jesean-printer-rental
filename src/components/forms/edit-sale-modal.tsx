@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import type { InventoryCategory } from "@prisma/client";
-import { createSale } from "@/actions/sales";
+import { updateSale } from "@/actions/sales";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,24 +37,63 @@ type DraftLine = {
   unitPrice: number;
 };
 
-function productLabel(product: ProductOption) {
-  const category = INVENTORY_CATEGORY_LABELS[product.category];
-  const detail = formatInventoryProductLabel(product);
-  return `${detail} · ${category} · ${product.quantity} in stock · ${formatCurrency(product.sellPrice)}`;
-}
+function productLabel(
+  product: ProductOption,
+  reserved = 0
+) {
+  const category =
+    INVENTORY_CATEGORY_LABELS[product.category];
 
-export function AddSaleModal({
-  clients,
-  products,
-}: {
-  clients: ClientOption[];
-  products: ProductOption[];
-}) {
+  const detail =
+    formatInventoryProductLabel(product);
+
+  return `${detail} · ${category} · ${
+    product.quantity + reserved
+  } available · ${formatCurrency(product.sellPrice)}`;
+}
+type Props = {
+    sale: any;
+    clients: ClientOption[];
+    products: ProductOption[];
+    children: React.ReactNode;
+  };
+  
+  export function EditSaleModal({
+    sale,
+    clients,
+    products,
+    children,
+  }: Props) {
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<DraftLine[]>([]);
+
+useEffect(() => {
+  setLines(
+    (sale.lines ?? []).map((line: any) => ({
+      key: line.id,
+      productId: line.productId ?? "",
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+    }))
+  );
+}, [sale]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const originalQty = useMemo(() => {
+    const map = new Map<string, number>();
+  
+    (sale.lines ?? []).forEach((line: any) => {
+      if (!line.productId) return;
+  
+      map.set(
+        line.productId,
+        (map.get(line.productId) ?? 0) + line.qty
+      );
+    });
+  
+    return map;
+  }, [sale]);
 
   const productById = useMemo(
     () => new Map(products.map((product) => [product.id, product])),
@@ -67,7 +106,14 @@ export function AddSaleModal({
   );
 
   function resetForm() {
-    setLines([]);
+    setLines(
+      (sale.lines ?? []).map((line: any) => ({
+        key: line.id,
+        productId: line.productId ?? "",
+        qty: line.qty,
+        unitPrice: line.unitPrice,
+      }))
+    );
     setError(null);
   }
 
@@ -107,10 +153,18 @@ export function AddSaleModal({
     setLines((prev) => prev.filter((line) => line.key !== key));
   }
 
-  function buildFormData(clientId: string, notes: string) {
+  function buildFormData(
+    clientId: string,
+    notes: string,
+    delivery: string
+  ) {
     const fd = new FormData();
+  
+    fd.set("id", sale.id);
     fd.set("clientId", clientId);
     fd.set("notes", notes);
+    fd.set("deliveryDate", delivery);
+  
     fd.set(
       "lines",
       JSON.stringify(
@@ -121,22 +175,22 @@ export function AddSaleModal({
         }))
       )
     );
+  
     return fd;
   }
 
   return (
     <>
-      <Button type="button" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" />
-        Add sale
-      </Button>
+      <div onClick={() => setOpen(true)}>
+        {children}
+        </div>
       <Modal
         open={open}
         onClose={() => {
           setOpen(false);
           resetForm();
         }}
-        title="New sale"
+        title="Update"
       >
         <form
           className="space-y-4"
@@ -151,16 +205,25 @@ export function AddSaleModal({
             const form = event.currentTarget;
             const clientId = String(new FormData(form).get("clientId") || "");
             const notes = String(new FormData(form).get("notes") || "");
+            
 
             for (const line of lines) {
               const product = productById.get(line.productId);
+            
               if (!product) {
                 setError("One or more products are unavailable.");
                 return;
               }
-              if (line.qty > product.quantity) {
+            
+              const reserved =
+                originalQty.get(line.productId) ?? 0;
+            
+              const available =
+                product.quantity + reserved;
+            
+              if (line.qty > available) {
                 setError(
-                  `Insufficient stock for ${product.name}. Available: ${product.quantity}`
+                  `${product.name} only has ${available} available.`
                 );
                 return;
               }
@@ -168,7 +231,13 @@ export function AddSaleModal({
 
             startTransition(async () => {
               try {
-                await createSale(buildFormData(clientId, notes));
+                const formData = new FormData(form);
+
+                    await updateSale(buildFormData(
+                    clientId,
+                    notes,
+                    String(formData.get("deliveryDate") || "")
+));
                 setOpen(false);
                 resetForm();
                 router.refresh();
@@ -180,7 +249,7 @@ export function AddSaleModal({
         >
           <div>
             <Label>Client</Label>
-            <Select name="clientId" className="mt-1">
+            <Select name="clientId" className="mt-1" defaultValue={sale.clientId}>
               <option value="">Walk-in</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -224,14 +293,21 @@ export function AddSaleModal({
                       required
                     >
                       {products.map((option) => (
-                        <option
-                          key={option.id}
-                          value={option.id}
-                          disabled={option.quantity <= 0}
-                        >
-                          {productLabel(option)}
-                        </option>
-                      ))}
+                          <option
+                            key={option.id}
+                            value={option.id}
+                            disabled={
+                              option.quantity +
+                                (originalQty.get(option.id) ?? 0) <=
+                              0
+                            }
+                          >
+                            {productLabel(
+                              option,
+                              originalQty.get(option.id) ?? 0
+                            )}
+                          </option>
+                        ))}
                     </Select>
                   </div>
                   <div>
@@ -239,7 +315,12 @@ export function AddSaleModal({
                     <Input
                       type="number"
                       min={1}
-                      max={product?.quantity ?? 1}
+                      max={
+                        product
+                          ? product.quantity +
+                            (originalQty.get(product.id) ?? 0)
+                          : 1
+                      }
                       step={1}
                       value={line.qty}
                       onChange={(e) =>
@@ -290,18 +371,22 @@ export function AddSaleModal({
             </span>
           </div>
           <div>
-          <label>Delivery Date</label>
-
-              <Input
-                  type="date"
-                  name="deliveryDate"
-                  defaultValue={new Date().toISOString().split("T")[0]}
-              />
+            <Label>Date</Label>
+            <Input
+                type="date"
+                name="deliveryDate"
+                defaultValue={new Date(sale.delivery).toISOString().split("T")[0]}
+                className="mt-1"
+                />
           </div>
 
           <div>
             <Label>Notes</Label>
-            <Input name="notes" className="mt-1" placeholder="Optional" />
+            <Input
+  name="notes"
+  defaultValue={sale.notes ?? ""}
+  className="mt-1"
+ />
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -318,7 +403,7 @@ export function AddSaleModal({
               Cancel
             </Button>
             <Button type="submit" loading={pending} disabled={lines.length === 0}>
-              {pending ? "Saving..." : "Record sale"}
+              {pending ? "Saving..." : "Update Record"}
             </Button>
           </div>
         </form>

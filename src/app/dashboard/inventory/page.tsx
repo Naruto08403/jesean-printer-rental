@@ -67,6 +67,7 @@ export default async function InventoryPage({
           id: product.id,
           name: product.name,
           sku: product.sku,
+          color:product.color, 
           category: product.category,
           partType: product.partType,
           brand: product.brand,

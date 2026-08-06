@@ -51,6 +51,7 @@ export async function listActiveInventoryForSale() {
       model: true,
       quantity: true,
       sellPrice: true,
+      color:true,
     },
   });
 }
@@ -71,6 +72,7 @@ export async function createInventoryProduct(formData: FormData) {
   const reorderAtRaw = String(formData.get("reorderAt") || "").trim();
   const costPrice = costPriceRaw ? Number(costPriceRaw) : null;
   const reorderAt = reorderAtRaw ? Number(reorderAtRaw) : null;
+  const color  = String(formData.get("color") || "").trim() || null;
 
   if (!name) throw new Error("Product name is required");
   if (!Number.isFinite(quantity) || quantity < 0 || !Number.isInteger(quantity)) {
@@ -97,6 +99,7 @@ export async function createInventoryProduct(formData: FormData) {
       sellPrice,
       costPrice,
       reorderAt,
+      color,
       isActive: true,
     },
   });
@@ -120,6 +123,7 @@ export async function updateInventoryProduct(id: string, formData: FormData) {
   const isActive = formData.get("isActive") === "on" || formData.get("isActive") === "true";
   const costPrice = costPriceRaw ? Number(costPriceRaw) : null;
   const reorderAt = reorderAtRaw ? Number(reorderAtRaw) : null;
+  const color  = String(formData.get("color") || "").trim() || null;
 
   if (!name) throw new Error("Product name is required");
   if (!Number.isFinite(sellPrice) || sellPrice < 0) throw new Error("Invalid sell price");
@@ -143,6 +147,7 @@ export async function updateInventoryProduct(id: string, formData: FormData) {
       sellPrice,
       costPrice,
       reorderAt,
+      color,
       isActive,
     },
   });
@@ -185,4 +190,17 @@ export async function adjustInventoryStock(id: string, formData: FormData) {
   });
 
   revalidateInventoryPaths();
+}
+
+
+export async function deleteInventory(id: string) {
+  await prisma.inventoryProduct.deleteMany({
+    where: {
+      id: id,
+    },
+  });
+
+ 
+
+  revalidatePath("/dashboard/inventory");
 }
