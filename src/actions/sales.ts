@@ -308,7 +308,7 @@ export async function updateSale(formData: FormData) {
             },
 
         notes,
-        delivery,
+        delivery: delivery ?? undefined,
         items,
         totalAmount,
       },
