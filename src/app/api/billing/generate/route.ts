@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     const startMonth = Number(body.startMonth);
     const endMonth = Number(body.endMonth);
     const issueDateRaw = String(body.issueDate ?? "");
+    const representativeName = String(body.representative ?? "")
 
     if (!clientId) {
       return NextResponse.json({ error: "Client is required" }, { status: 400 });
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       startMonth,
       endMonth,
       rentals: loaded.rentals,
+      representativeName:representativeName,
     });
 
     const filename = billingDownloadFilename(

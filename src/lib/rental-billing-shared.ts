@@ -101,6 +101,7 @@ export function billingDownloadFilename(
 
 export function prepareBillingStatement(input: GenerateBillingInput): BillingStatementData {
   const { clientName, issueDate, startMonth, endMonth, rentals } = input;
+  const currentYear = new Date().getFullYear();
 
   if (startMonth < 0 || startMonth > 11 || endMonth < startMonth || endMonth > 11) {
     throw new Error("Invalid month range");
@@ -126,7 +127,7 @@ export function prepareBillingStatement(input: GenerateBillingInput): BillingSta
     const amount = suggestion.monthlyPayable;
     total += amount;
     months.push({
-      label: `MONTH OF ${MONTH_NAMES_UPPER[month]}`,
+      label: `MONTH OF ${MONTH_NAMES_UPPER[month]} ${currentYear}`,
       amount,
     });
   }

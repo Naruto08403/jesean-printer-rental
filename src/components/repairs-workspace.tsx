@@ -23,7 +23,7 @@ import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { MONTH_LABELS } from "@/lib/rental-annual";
 import type { PaymentSummary } from "@/lib/payments";
 
-export type RepairPaymentFilter = "all" | "paid" | "unpaid" | "billed-unpaid";
+export type RepairPaymentFilter = "all" | "paid" | "unpaid" | "billed-unpaid" | "cancelled";
 export type RepairSortField = "received" | "customer" | "payment";
 export type RepairSortDirection = "asc" | "desc";
 
@@ -46,6 +46,7 @@ export type RepairListRow = {
   isBilledUnpaid: boolean;
   filterYear: number;
   filterMonth: number;
+  isCancelled: boolean;
 };
 
 function repairFilterDate(row: RepairListRow) {
@@ -63,6 +64,8 @@ function matchesPaymentFilter(row: RepairListRow, filter: RepairPaymentFilter) {
       return row.isBillable && row.isUnpaid;
     case "billed-unpaid":
       return row.isBilledUnpaid;
+    case "cancelled":
+      return row.isCancelled;
     default:
       return true;
   }
@@ -238,6 +241,8 @@ export function RepairsWorkspace({
         return "Unpaid";
       case "billed-unpaid":
         return "Billed unpaid";
+      case "cancelled":
+        return "Cancelled";
       default:
         return "All";
     }
@@ -313,6 +318,7 @@ export function RepairsWorkspace({
             <option value="paid">Paid</option>
             <option value="unpaid">Unpaid</option>
             <option value="billed-unpaid">Billed unpaid</option>
+            <option value="cancelled">Cancelled</option>
           </Select>
         </div>
         <div>
@@ -506,8 +512,16 @@ export function RepairsWorkspace({
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{row.amountLabel}</td>
+               
+              
                   <td className="px-4 py-3">
-                    {row.isChargeWaived ? (
+                    {row.isCancelled ? (
+                      <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                      Cancelled
+                    
+                    
+                    </span>
+                    ) : row.isChargeWaived ? (
                       <span className="text-xs text-slate-400">—</span>
                     ) : (
                       <PaymentStatus
@@ -519,6 +533,9 @@ export function RepairsWorkspace({
                       />
                     )}
                   </td>
+
+
+
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
                       <button

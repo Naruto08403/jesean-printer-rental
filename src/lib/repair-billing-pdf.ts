@@ -762,7 +762,7 @@ async function buildPdf(
   const representative =
     input.representativeName ??
     process.env.BILLING_REPRESENTATIVE_NAME ??
-    "SUNDAY SETH A. ATUEL";
+    "RUEL A. ARGUELLES";
 
   const billingTitle = input.documentTitle ?? "BILLING STATEMENT";
 

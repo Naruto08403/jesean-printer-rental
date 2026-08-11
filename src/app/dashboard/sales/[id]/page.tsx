@@ -83,6 +83,7 @@ export default async function SaleDetailPage({
           {sale.payments.map((p) => (
             <li key={p.id} className="flex justify-between py-3">
               <span>{formatDate(p.paidAt)}</span>
+              <span>{p.notes}</span>
               <span>{formatCurrency(p.amount)}</span>
             </li>
           ))}

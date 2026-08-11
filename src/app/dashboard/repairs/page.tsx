@@ -17,6 +17,7 @@ import { AddRepairPaymentModal } from "@/components/forms/add-repair-payment-mod
 import { GenerateRepairBillingModal } from "@/components/forms/generate-repair-billing-modal";
 import { RepairsWorkspace, type RepairListRow } from "@/components/repairs-workspace";
 import type { RepairDetailPayload } from "@/components/forms/repair-view-modal";
+import { ServiceStatus } from "@prisma/client";
 
 function toDateInput(d: Date | null | undefined) {
   if (!d) return "";
@@ -58,6 +59,7 @@ export default async function RepairsPage() {
       !r.isChargeWaived &&
       r.totalAmount > 0 &&
       !paymentSummary.isFullyPaid;
+    const isCancelled = r.status === ServiceStatus.CANCELLED;
 
     const isBillable = !r.isChargeWaived && r.totalAmount > 0;
     const isPaid = isBillable && paymentSummary.isFullyPaid;
@@ -128,6 +130,7 @@ export default async function RepairsPage() {
       paymentSummary,
       paymentCount: r.payments.length,
       isUnpaid,
+      isCancelled,
       isBillable,
       isPaid,
       isBilledUnpaid,
@@ -144,7 +147,6 @@ export default async function RepairsPage() {
         r.printer?.brand,
         r.printer?.model,
         repairDisplayTitle(r),
-        r.diagnosis,
         r.billingDate ? formatDate(r.billingDate) : "",
         formatCurrency(r.totalAmount),
         formatCurrency(paymentSummary.balance)

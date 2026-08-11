@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       createdAt: "desc",
     },
   });
+  
 
   const rows = buildClientAnnualRows(rentals, year);
 

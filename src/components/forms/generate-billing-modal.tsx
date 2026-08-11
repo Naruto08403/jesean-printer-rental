@@ -54,6 +54,13 @@ export function GenerateBillingModal({
   const [issueDate, setIssueDate] = useState(todayDateInput());
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const REPRESENTATIVES = [
+    { value: "SUNDAY SETH A. ATUEL", label: "SUNDAY SETH A. ATUEL" },
+    { value: "RUEL A. ARGUELLES", label: "RUEL A. ARGUELLES" },
+    { value: "ALBERT MILO", label: "ALBERT MILO" },
+  ];
+
+  const [representative, setRepresentative] = useState("SunSUNDAY SETH A. ATUEL");
 
   const years = rentalAnnualYearOptions();
   const selected = clients.find((c) => c.id === clientId);
@@ -84,6 +91,7 @@ export function GenerateBillingModal({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...(portalMode ? {} : { clientId }),
+            representative,
             year: Number(year),
             startMonth: Number(startMonth),
             endMonth: Number(endMonth),
@@ -193,6 +201,24 @@ export function GenerateBillingModal({
               className="mt-1"
               required
             />
+          </div>
+
+          <div>
+            <Label htmlFor="billing-representative">Representative</Label>
+            <Select
+              id="billing-representative"
+              value={representative}
+              onChange={(e) => setRepresentative(e.target.value)}
+              className="mt-1"
+            >
+              <option value="SunSUNDAY SETH A. ATUEL">SUNDAY SETH A. ATUEL</option>
+
+              {REPRESENTATIVES.map((rep) => (
+                <option key={rep.value} value={rep.value}>
+                  {rep.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <div>
