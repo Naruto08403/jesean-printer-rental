@@ -1,6 +1,17 @@
 import { formatCurrency } from "@/lib/utils";
 
-export function ReceiptTable({ lines }: any) {
+interface SaleLine {
+  id: string;
+  saleId: string;
+  productId: string | null;
+  product: { name: string } | null;
+  name: string;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export function ReceiptTable({ lines }: { lines: SaleLine[] }) {
   return (
     <table className="mt-4 w-full border-collapse border border-black">
 
@@ -34,7 +45,7 @@ export function ReceiptTable({ lines }: any) {
 
       <tbody>
 
-        {lines.map((line: any) => (
+        {lines.map((line) => (
 
           <tr key={line.id}>
 

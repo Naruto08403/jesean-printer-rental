@@ -5,7 +5,32 @@ import { ReceiptTable } from "./receipt-table";
 import { ReceiptFooter } from "./receipt-footer";
 import { formatCurrency } from "@/lib/utils";
 
-export function DeliveryReceipt({ sale }: any) {
+interface SaleWithRelations {
+  id: string;
+  clientId: string | null;
+  client: { name: string } | null;
+  status: string;
+  items: string;
+  totalAmount: number;
+  notes: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  delivery: Date | string;
+  lines: SaleLine[];
+}
+
+interface SaleLine {
+  id: string;
+  saleId: string;
+  productId: string | null;
+  product: { name: string } | null;
+  name: string;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export function DeliveryReceipt({ sale }: { sale: SaleWithRelations }) {
   return (
     <>
       <style>{`
