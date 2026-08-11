@@ -30,6 +30,31 @@ type ProductOption = {
   sellPrice: number;
 };
 
+interface SaleLine {
+  id: string;
+  saleId: string;
+  productId: string | null;
+  product?: { name: string } | null;
+  name: string;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+interface SaleWithRelations {
+  id: string;
+  clientId: string | null;
+  client: { name: string } | null;
+  status: string;
+  items: string;
+  totalAmount: number;
+  notes: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  delivery: Date | string;
+  lines: SaleLine[];
+}
+
 type DraftLine = {
   key: string;
   productId: string;
@@ -52,7 +77,7 @@ function productLabel(
   } available · ${formatCurrency(product.sellPrice)}`;
 }
 type Props = {
-    sale: any;
+    sale: SaleWithRelations;
     clients: ClientOption[];
     products: ProductOption[];
     children: React.ReactNode;
@@ -69,7 +94,7 @@ type Props = {
 
 useEffect(() => {
   setLines(
-    (sale.lines ?? []).map((line: any) => ({
+    (sale.lines ?? []).map((line) => ({
       key: line.id,
       productId: line.productId ?? "",
       qty: line.qty,
@@ -80,10 +105,10 @@ useEffect(() => {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const originalQty = useMemo(() => {
+const originalQty = useMemo(() => {
     const map = new Map<string, number>();
-  
-    (sale.lines ?? []).forEach((line: any) => {
+   
+    (sale.lines ?? []).forEach((line) => {
       if (!line.productId) return;
   
       map.set(
@@ -107,7 +132,7 @@ useEffect(() => {
 
   function resetForm() {
     setLines(
-      (sale.lines ?? []).map((line: any) => ({
+      (sale.lines ?? []).map((line) => ({
         key: line.id,
         productId: line.productId ?? "",
         qty: line.qty,
@@ -249,7 +274,7 @@ useEffect(() => {
         >
           <div>
             <Label>Client</Label>
-            <Select name="clientId" className="mt-1" defaultValue={sale.clientId}>
+            <Select name="clientId" className="mt-1" defaultValue={sale.clientId ?? ""}>
               <option value="">Walk-in</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>

@@ -4,7 +4,7 @@ interface SaleLine {
   id: string;
   saleId: string;
   productId: string | null;
-  product: { name: string } | null;
+  product?: { name: string } | null;
   name: string;
   qty: number;
   unitPrice: number;
