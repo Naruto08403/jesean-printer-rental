@@ -50,7 +50,7 @@ export async function GET(
 
     const pdf = await generateDeliveryReceiptPdf(sale);
 
-    return new NextResponse(pdf, {
+    return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="delivery-receipt-${sale.id}.pdf`,
