@@ -29,6 +29,7 @@ export type InventoryRow = {
   partType: string | null;
   brand: string | null;
   model: string | null;
+  color: string | null;
   quantity: number;
   sellPrice: number;
   costPrice: number | null;
